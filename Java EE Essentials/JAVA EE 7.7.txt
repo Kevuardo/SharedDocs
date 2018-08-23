@@ -1,0 +1,645 @@
+[JAVA EE 7] Capítulo 10 y 11: Java Faces
+----------------------------------------
+
+JSF o Java Servlet Faces es la solución de Java EE para unir la lógica de negocio con la capa de cliente. Se encarga de interceptar las peticiones HTTP y producir HTML. Su arquitectura permite utilizar cualquier lenguaje de plugin o de generación de vistas (PDL [Plugin Declaration Language] o VDL [View Declaration Langauge]) para renderizar la ifnromación en cualquier dispositivo y crear páginas a la manera de Swing, mediante escuchadores, eventos y componentes.
+
+Las piezas más importantes de la arquitectura JSF son:
+
+	- FacesServlet y faces-config.xml: Es el servlet prinicpal de la aplicación y puede ser configurado con el fichero faces-config.xml descriptor.
+
+	- Pages and components: JSF permite múltiples PDLs pero JSF 2.0 recomienda Facelets. Los Faceletes están compuestos por un arbol de componentes llamdos widgets o controles que proveen funcionalidad especifica para interactuar con el usuario final. Alguno de los elementos no tienen componente visual (<h:head>, <h:body> ...) mientras que otros sí (<h:inputText>), <h:commandButton> ...)
+
+		Cabecera: Se podría entender como la zona de imports de java, en ella se definen las librerías que serán utlizadas en el JSF.
+
+			Posibles librerías:
+
+				- http://xmlns.jcp.org/jsf/html (h) -> Esta librería contiene componentes y sus referentes renderizados en HTML (h:commandButton, h:commandLink, h:inputText, etc.).
+				- http://xmlns.jcp.org/jsf/core (f) -> Contiene acciones que son independientes del renderizado (f:selectItem, f:validateLength, f:convertNumber, etc.). Permite usar los siguiebtnes tags:
+
+					<f:facet> -> Añade una faceta a un componente.
+					<f:attribute> -> Añade una tributo a un componente.
+					<f:param> -> Construye un parámetro hijo de un componente.
+					<f:actionListener>, <f:valueChangeListener>, <f:propertyActionListener> -> Añade escuchadores a un componente.
+					<f:phaseListener> -> Añade escuchador de fase a una página.
+					<f:converter>, <f:convertDateTime>, <f:convertNumber> -> Añade un convertidor a un componente, ya sea customizado, espcífico de fecha o específico de número.
+					<f:validator>, <f:validateDoubleRange>, <f:validateLongRange>, <f:validateLength>, <f:validateRegex> -> Añade un valdiador a un componente, ya sea customizado o de tipos específicos.
+					<f:validateBean> -> Especifica un validador de Bean determinado.
+					<f:loadBundle> -> Especifica un contebnedor de recoursos
+					<f:selectItem>, <f:selectItems> -> Items de los combos de selección.
+					<f:ajax> -> Habilita el comportamiento Ajax.
+					<f:viewParam> -> Añade un parámetro a una petición GET para obtener sus datos en una vista
+					<f:viewAction> -> Añade uan acción sobre una variable de una petición GET en un lista
+
+				- http://xmlns.jcp.org/jsf/facelets (ui) -> Contiene soporte para "templating" y creación de fragmentos de una página. Permite usar los siguientes tags:
+
+					<ui:composition> -> Define una composición que puede o no usar un template. Varias composiciones puden usar el mismo template.
+					<ui:component> -> Crea un componente.
+					<ui:debug> -> Captura información de debug.
+					<ui:define> -> Define contendio que será insertado en la págian por un template.
+					<ui:decorate> -> Permite decorar contenido en una página.
+					<ui:fragment> -> Añade un fragmento a una página.
+					<ui:include> -> Encapsula y reutiliza contenido a través de múltiples páginas XHTML.
+					<ui:insert> -> Inserta contenido en un template.
+					<ui:param> -> Pasa parámetros a un fichero incluido o un template.
+					<ui:repeat> -> Itera a trávés de una lista de objetos.
+					<ui:remove> -> Borra contendio de una página.
+
+				- http://xmlns.jcp.org/jsf/composite (composite) -> Se utiliza para declarar y definir componentes "composite". Mirar ejemplo en: https://www.mkyong.com/jsf2/composite-components-in-jsf-2-0/
+
+				- http://xmlns.jcp.org/jsp/jstl/core (c) -> Elementos de lógica de JSP. Permite usar los siguientes tags:
+
+					<c:set> -> Añade valor a una variable sin scope.
+					<c:catch> -> Atrape una java.lang.Throwable que haya arrojado cunalquiera de las acciones asopciadas.
+					<c:if> -> Evalua si una expresión devuelve true.
+					<c:choose> -> Provee condiciones exclusivas entre sí. Equivale a siwtch en java.
+					<c:when> -> Representa una de las alternativas de <c:choose>. Equivale a case en java.
+					<c:otherwise> -> Representa la última alternativa a las acciones <c:choose>. Equivale a default en java.
+					<c:forEach> Repite el cuerpo asociado sobre una colección de objetos o un número determiando de veces.
+
+				- http://xmlns.jcp.org/jsp/jstl/fmt (fmt) -> Permite formatear números, fechas, monedas y porcentajes. Además, ofrece el soporte de internacionalización i18 para esos elmentos. Permite usar los siguientes tags:
+
+					<fmt:message> -> Internacionaliza un mensaje extrayendolo de un "resource bundel".
+					<fmt:param> -> Suplanta un parámetro por un <fmt:message>.
+					<fmt:bundle> -> Estable el "resource bundle"
+					<fmt:setLocale> -> Establece el locale.
+					<fmt:requestEncoding> -> Establece la codificación de las peticiones.
+					<fmt:timeZone> -> Establece la zaona horaria en la cual se ha de formatear las fechas y horas.
+					<fmt:formatNumber> -> Formatea un valor numérico (número, moneda o porcentaje) en función de su localidad.
+					<fmt:parseNumber> -> Parse la representación a cadena de un número (número, moneda o porcentaje).
+					<fmt:formatDate> -> Formatea fechas y tiempo en función de la localidad.
+					<fmt:parseDate> -< Parsea la representación a cadena de fechas y tiempo.
+
+				- http://xmlns.jcp.org/jsp/jstl/functions (fn) -> Uso de las funciones de las librerías de JSP.
+
+
+			Ejemplo:
+
+				<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+				<html
+					xmlns="http://www.w3.org/1999/xhtml"
+					xmlns:h="http://xmlns.jcp.org/jsf/html"
+					xmlns:f="http://xmlns.jcp.org/jsf/core"
+				>
+
+		Cuerpo: Esta sección contiene los componentes y el contenido HTML que serán renderizados. Los componentes heredan de la clase: javax.faces.component.UIComponent y pertenecen a la librería h.
+
+			Distintos componentes:
+
+				- UIColumn -> Representa una columna
+
+					<h:column> -> HtmlColumn. Representa las columnas de un componente <h:dataTable>
+
+				- UICommand -> Representa componentes gráficos como botones, hyperlinks o menus que lanzan acciones de submit o reset. La acción de submit es la acción por defecto. Esta se puede cambiar con el atributo type="reset". El atributo action permite la ejecución de una función. Existen lso siguientes tipos de comandos:
+
+					<h:commandButton> -> HtmlCommandButton. Es al representación de un botón
+					<h:commandLink> -> HtmlCommandLink. Link que representa un submit. Se suele incluir dentro de los fomrularios.
+
+				- UIComponent -> Clase base para las interfaces de componentes de usuario en JSF.
+				- UIComponentBase -> Clase que implementa el comportamiento por defecto de todos los métodos definidos por UIComponent.
+				- UIData -> Da soporte a conjuntos de datos para renderizar tablas, listas y arboles.
+
+					<h:dataTable> -> HtmlDataTable. Representa un conjunto de datos que se muestra en forma de <table>.
+
+				- UIForm -> Representa un formulario de datos de usuario como contenedor de otros componentes.
+
+					<h:form> -> HtmlForm. Renderiza un elemento de tipo <form>.
+
+				- UIGraphic -> Muestra una imágen con varios atributos: value="url_to_image" width="xxx" height="xxx"
+
+					<h:graphicImage> -> HtmlGraphicImage.
+
+				- UIInput -> Representa componentes de entrada de datos como input fields o text areas. Contiene atributos que permiten manejar las dimensiones, el contendio o como se muestra el valor introducido. Existen diferentes tipos:
+
+					<h:inputHidden> -> HtmlInputHidden. Campo de entrada de datos oculto
+					<h:inputSecret> -> HtmlInputSecret. Campo de entrada de datos que oculta la información introducida. Util para passwords.
+					<h:inputText> -> HtmlInputText. Representa un campo de entrada de texto simple.
+					<h:inputTextarea> -> HtmlInputTextarea. Representa un campo de text Area.
+					<h:inputFile> - >HtmlInputFile. Representa un campo de búsqueda o arrastrado de ficheros
+
+				- UIMessage, UIMessages -> Permite mostrar mensajes para un UIComponent específico. Los mensajes tienen diferentes severidades: INFO, WARN, ERROR, y FATAL, cada uno con diferentes estilos asociados: infoStyle, warnStyle, errorStyle, y fatalStyle. DE los cuales se puede modificar el estilo. Existen diferentes tipos:
+
+					<h:message> -> HtmlMessage. Renderiza un mensaje al usuario
+					<h:messages> -> HtmlMessages. Renderiza todos los mensajes de los componentes de la página. Ejemplo:
+
+						<h:messages style="color:red"/>
+						<h:form>
+							Enter a title:
+							<h:inputText value="#{bookController.title}" required="true"/>
+							<h:commandButton action="#{bookController.save}" value="Save"/>
+						</h:form>
+
+				- UIOutcomeTarget -> Representa botones e hiperlinks con la habilidad de cambiar de estaod manteniendo el estado anterior. Tien el atributo outcome="any.xml" en el que se inluye la vista de redireccíón. Existen los siguientes tipos:
+
+					<h:button> -> HtmlOutcomeTargetButton. Produce un botón redireccionador
+					<h:link> -> HtmlOutcomeTargetLink. Produce un link redireccionador
+
+				- UIOutput -> Representa componentes de salida de texto no modificables como label. Su principal atribtuo es value="Some Text". Existen varios tipos:
+
+					<h:outputLabel> -> HtmlOutputLabel. Rendeirza un <label>.
+					<h:outputLink> -> HtmlOutputLink. Renderiza un link sin redirección.
+					<h:outputText> -> HtmlOutputText. Muestra texto.
+					<h:outputFormat> -> HtmlOutputFormat. Renderiza texto parametrizado. Ejemplo:
+
+						<h:outputFormat value="Welcome {0}. You have bought {1} items">
+							<f:param value="#{user.firstName}" />
+							<f:param value="#{user.itemsBought}" />
+						</h:outputFormat>
+
+				- UIPanel -> Representa compontenes contenedores de otros compontes. Se puede definir un fotter o un header con el tag <f:facet>
+
+					<h:panelGrid> -> HtmlPanelGrid. Renderiza un conjunto de datos en una distribución de columnas específica.
+					<h:panelGroup> -> HtmlPanelGroup. Es un contenedoR de componentes que puedn ser incluidos dentro de un <h:panelGrid>
+
+				- UIParameter -> Representa información que no requiere renderizado.
+
+					<h:body> -> HtmlBody. Elemento <body>
+					<h:head> -> HtmlHead. Elemento <head>
+					<h:doctype> -> HtmlDoctype. Elemento <doctype> 
+					<h:outputScript> Output. Elemento <script>
+					<h:outputStylesheet> Output. Elemento <link> del header
+
+				- Elementos de selección: 
+
+					Existen diferentes tipos:
+					
+						UISelectBoolean -> Representa "check boxes"
+						UISelectItem, UISelectItems -> Representa una lista de selección múltimple o siple
+						UISelectOne, UISelectMany -> Representa un conjunto de elementos seleccionables como  "combo boxes", "list boxes", o grupos de "check boxes".
+
+					Existen diferentes tags:
+
+						<h:selectBooleanCheckbox> -> HtmlSelectBooleanCheckbox. Renderiza un checkBox simple.
+						<h:selectManyCheckbox> -> HtmlSelectManyCheckbox. Renderiza una lista de CheckBoxes
+						<h:selectManyListbox> -> HtmlSelectManyListbox. Renderiza una lista de selección múltiple.
+						<h:selectManyMenu> -> HtmlSelectManyMenu. Representa un campo de tipo <select>.
+						<h:selectOneListbox> HtmlSelectOneListbox. Representa una lista de selección simple
+						<h:selectOneMenu> -> HtmlSelectOneMenu. Renderiza un componente de selección simple en la que la selección se realiza mediante flechas.
+						<h:selectOneRadio> HtmlSelectOneRadio. Renderiza una lista de radio buttons.
+
+					Todos tienen el subComponente: <f:selectItem itemLabel="some Text"/> para las opciones del menú
+
+				UIViewAction -> Representa una invocación que ocurre durante el proceso del ciclo de vida.
+				UIViewParameter -> Representa una conexión bidireccional entre el parámetro de la request y los bean.
+				UIViewRoot -> Representa la raíz de renderizado.
+
+			Ciclo de Vida: Desde otro punto de vista una página JSF sería un arbol de Componentes con un ciclo de vida en 6 fases:
+
+				1. Restaurando la vista: JSF encuntra la vista objeto y le aplica los input del usuario. Si es la primera vez que el cliente visita la página, JSF crea la vista como un componente UIViewRoot. La siguientes peticiones reutilizan el objeto creado.
+
+				2. Aplicando los valores de la request: Se aplican los valores de la request en los componentes de la vista. Solo los estados del componente, no los de los Bean almacenados.
+
+				3. Process validations: JSF recorre el arbol de componentes y pregunta a cada uno de los elementos si tiene un valor adecuado. Si todo es ok se continúa en la siguiente fase, si no, the life cycle se procede a la renderización de los mensajes asociados de error.
+
+				4. Update model values: Una vez validados los valores de los componentes, estos se asocian con los Bean almacenados.
+
+				5. Invoke application: Eas el momento de permanecer a la escucha de las acciones de la ventana que puedne o no interactuar con los Bean almacenados. Estas acciones pueden generar nuevos renderizados.
+
+				6. Render response: La respuestas se rendeirzan en el cliente iniciando otra vez el ciclo de vida. Además, se almacena el estado de la vista antes del cambio de renderizado por sui el cliente volviese a realizar la petición anterior.
+
+			Los componentes tienen una seride atributos comunes:
+
+				id -> Identificador del componente
+				rendered -> Determina si el componente soporta o no renderizado.
+				value -> El valor del componente (Texto o enlaze EL).
+				converter -> Nombre de la clase del convertidor.
+				validator -> Nombre de la clase del validador.
+				required -> Determina si el valor del componente es obligatorio o no.
+
+		Gestión de recursos: JSF 2.0 Ofrece una forma particular de gestionar y trabajar con los recursos externos a una aplciación como scripts, hojas de estilo o imágenes. 
+
+			Uso: Se pueden colocar en un el directorio (resources/<resourceIdentifier>) o empaquetados en un jar WEB-INF/lib/{*.jar}/META-INF/resources/<resourceIdentifier>. Para definir un versionado o localizaciones se utiliza la siguiente nomengaltura [localePrefix/][libraryName/][libVersion/]resourceName[/resourceVersion]. "resources/" es el valor por defecto. A partir de JSF 2.2 se puede cambiar con la variable javax.faces.WEBAPP_RESOURCES_DIRECTORY establecida en el fichero web.xml.
+
+			Ejemplo:
+
+				book.gif
+				en/book.gif
+				en_us/book.gif
+				en/myLibrary/book.gif
+				myLibrary/book.gif
+				myLibrary/1_0/book.gif
+				myLibrary/1_0/book.gif/2_3.gif
+
+
+				<h:graphicImage value="book.gif" />
+				<h:graphicImage value="book.gif" library="myLibrary" />
+				<h:graphicImage value="#{resource['book.gif']}" />
+				<h:graphicImage value="#{resource['myLibrary:book.gif']}" />
+
+		Objetos implícitos: jsf inyectan los componetnes objetos que permiten acceder a diferentes elementos esenciales de la aplicación:
+
+			application (Object) -> Representa el entrono de la aplciación web. Recoje parámetros de configuración a nivel de aplicación.
+			applicationScope (Map) -> Mapea los valores de los atributos almacenados en el scope de la aplicación. 
+			component (UIComponent) -> Indica el componente actual.
+			cc (UIComponent) -> Indica el componente compuesto actual.
+			cookie (Map) -> Espcifica a través de un mapa los valores del objeto Cookie.
+			facesContext (FacesContext) -> Almacena la instancia FacesContext de la petición. 
+			flash (Object) -Representa el objeto flash. 
+			header (Map) -> Mapea las cabeceras HTTP en una única cadena.
+			headerValues (Map) -> Mapea las cabeceras HTTP en un String[].
+			initParam (Map) -> Mapea los parámetros del contexto de inicialización y sus valores.
+			param (Map) -> Mapea los valores de los parámetros de la petición en cadenas simples.
+			paramValues (Map) -> Mapea los valores de los parámetros de la petición en String[].
+			request (Object) -> Representa el objeto de la petición.
+			requestScope (Map) -> Mapea los valores de los atribtuos del scope de la petición.
+			resource (Object) -> Almacena los recursos externos de la aplicación.
+			session (Object) -> Representa el objeto de la sesión HTTP. 
+			sessionScope (Map) -> Mapea los valores de los atributos del scope de la sesión. 
+			view (UIViewRoot) -> Representa la vista actual. 
+			viewScope (Map) -> Mapea los valores de los atributos del scope de la vista. 
+	
+	- Renderers: Son los responsables de mostrar un componente y trasladar los input del usuario en una impelmentación delegada de la renderizasción de los componentes. Se organizan en kits de renderizado de lso cuales JSF tiene soporte para los estándar, aunque es posible generar kits de renderizado personalizados.
+	
+	- Converters: Convierten los valores de los componentes en (Date, Boolean, etc.) en la forma imprimible (String). Exsiste una serie de convertidores estándar en el paquete: javax.faces.convert, aunque pueden desarrollarse otros personalizados. 
+	
+	- Validators: Validan las entradas del usuario. Las validacione spueden ser delagdas a los Beans.
+	
+	- Backing beans and navigation: La lógica de negocio se ejecuta en estos objetos, que además manejan la navegación entre páginas y la consistencia de datos entre la lógica de negocio y el cliente. Las clases controladores deben ser anotadas con @Named para ser accesible desde el DOM a través de EL.
+
+		Ejemplo:
+
+			<h:inputText value="#{bookController.book.isbn}"/>
+			<h:commandButton value="Create" action="#{bookController.doCreateBook}"/>
+
+			-------------------------------------------------------------------------
+
+			@Named
+			@RequestScoped
+			public class BookController {
+
+				@Inject
+				private BookEJB bookEJB;
+
+				private Book book = new Book();
+
+				public String doCreateBook() {
+					book = bookEJB.createBook(book);
+					return "listBooks.xhtml";
+				}
+				// Getters, setters
+			}
+	
+	- Ajax support: A partr de JSF 2.2 Se incluye el sporte para Ajax.
+	
+	- Expression Language (EL): Es el lenguaje utilizado para realizar una unión entre los componentes y los backing Beans. El uso básico es #{expr} Puede utilizar las expresiones básicas de Java:
+
+		- Arimética: +, -, *, / (div), % (mod)
+		- Relacional: == (eq), != (ne), < (lt), > (gt), <= (le), >= (ge)
+		- Lógica: && (and), || (or), ! (not), and
+		- Otros: (), empty, []
+
+Modelo Vista controlador: Los Java Faces siguen el modelo vista controlador por el cual: 
+
+	Modelo: Modelo de datos. Al modelo de datos se accede a través de los Beans almacenados que son lo mismo que los Beans gestionados (EJBs) explicados con anterioridad pero utilizados en JSF. 
+
+		Características de los Bean almacenados:
+
+			- La clase debe estar anotada con @javax.inject.Named o su equivalente en faces-config.xml.
+			- Debe tener un Scope (e.g., @RequestScoped).
+			- La clase debe ser publica y no set final o abstract.
+			- Debe tener un constructor sin argumentos.
+			- No debe implementar el método finalize().
+			- Debe tener métodos de acceso (getters y setters) para que estén unidos a los componentes.
+
+		Estas caracterísitcas se unen en la anotación @javax.enterprise.inject.Model. Que usa como nombre por defecto para lso JSF la clase con la primer letra en minúscula.
+
+			@Named
+			@RequestScoped
+			@Documented
+			@Stereotype
+			@Target({ TYPE, METHOD, FIELD })
+			@Retention(RUNTIME)
+			public @interface Model {
+			}
+
+		Estos datos pueden ser visualizados en las vistas por un período de tiempo determinado por su scop. Existen varios tipos:
+
+			- Application: @ApplicationScoped. Los objetos creados pervivien en todos los ciclos de petición/respuesta de todos los clientes durante el tiempo que dure la aplicación. Estos objetos son llamados de forma concurrente.
+			
+			- Session: @SessionScoped. Los objetos son accesibles en todos los ciclos de petición/respuesta durante la sesión de un cliente. Es decir, hasta que la sesión sea invaldiada.
+			
+			- View: @ViewScoped. No es parte de CDI, son específicos de JSF. Los objetos soon visibles durante el tiempo que dure la vista en la que han sido creados 
+			
+			- Request: @RequestScoped. El objeto pervive desde la creación de la petición hasta que se envía uan respuesta al cliente.
+			
+			- Flash: Solo se puede usar de forma programática y son la manera de transferir objetos entre diferentes vistas cuyos scopes son más cortos que la vista.
+			
+			- Flow -> @FlowScoped. No es parte de CDI, son específicos de JSF. Son creados cuando el usuario en tra en un flujo y destrudos cuando el usuario sale de él.
+
+		Gestión de excepciones: Los mensajes se muestran en las etiquetas <h:message> que toman valor de la cola de mensajes  gestionada mediante el objeto facesContext:
+
+			addMessage(String clientId, FacesMessage message) -> Añade un mensaje a la cola.	
+				- clientId -> identificador del componente que mostrará el mensaje. Si este campo es nulo. El mensaje será global.
+				- message -> FacesMessage(Severity severity, String summary, String detail)
+					+ severity: Severidad del mensaje.
+					+ summary: Mensaje corto asociado al mensaje.
+					+ detail: Descricpión larga del mensaje.
+
+	Vistas: Paginas XHTML descritas anteriorimente. La navegación entre las diferentes vistas se puede realizar de varias maneras:
+
+		Navegación explícita -> Es la navegación producida llamado directamente al nombre de la vista. Que se puede ejecutar a través de un atributo outcome="loquesea.xhtml" o através de una acción que devuelve una cadena, siendo esa cadena la dirección de la nueva vista. Ejemplos:
+
+			<h:link value="Back to creating a new book" outcome="newBook.xhtml"/>
+			<h:commandButton value="Create a book" action="#{bookController.doCreateBook}">
+
+		Reglas de navegación -> Este tipo de navegación se gestiona a través del fichero faces-config.xml. En el atributo <navigation-rule>. El atributo <from-view-id> dentro del anterior puede ser un path de tal forma que puedes indicar que desde cualquier página, o eliminarlos para obtener el mismo resultado. Si se devuelve una cadena nula, el usuario vuelve a la página de la que venía. Se puede utilizar la precondición <if> dentro de la rela para que solo se redrija a esa vista si se cumple una condeición EL. Ejemplos:
+
+			@Named
+			@RequestScoped
+			public class BookController {
+				// ...
+				public String doCreateBook() {
+					book = bookEJB.createBook(book);
+					bookList = bookEJB.findBooks();
+					return "success";
+				}
+				// Constructors, getters, setters
+			}
+
+			<?xml version='1.0' encoding='UTF-8'?>
+			<faces-config 
+				xmlns="http://xmlns.jcp.org/xml/ns/javaee"
+				xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+				xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee http://xmlns.jcp.org/xml/ns/javaee/web-facesconfig_2_2.xsd"
+				version="2.2"
+			>
+				<navigation-rule>
+					from-view-id>*</from-view-id>
+					<navigation-case>
+						<from-outcome>logout</from-outcome>
+						<to-view-id>logout.xhtml</to-view-id>
+					</navigation-case>
+				</navigation-rule>
+				<navigation-rule>
+					<navigation-case>
+						<from-outcome>myData</from-outcome>
+						<to-view-id>myData.xhtml</to-view-id>
+					</navigation-case>
+				</navigation-rule>
+				<navigation-rule>
+					<from-view-id>newBook.xhtml</from-view-id>
+					<navigation-case>
+						<from-outcome>success</from-outcome>
+						<to-view-id>listBooks.xhtml</to-view-id>
+					</navigation-case>
+				</navigation-rule>
+				<navigation-rule>
+					<from-view-id>*</from-view-id>
+					<navigation-case>
+						<from-outcome>logout</from-outcome>
+						<to-view-id>logout_admin.xhtml</to-view-id>
+						<if>#{userController.isAdmin}</if>
+					</navigation-case>
+				</navigation-rule>
+			</faces-config>
+	
+	Controlador: 
+
+		Se inicia en la clase javax.faces.webapp.FacesServlet y están encargados de cominucarse entre la vista y los almacenes de Beans. Para realizar esta gestión, Este tipo de objeto crea primer una instancia de FacesContext y después entrega el control a otro objeto javax.faces.lifecycle.Lifecycle, encargado de gestionar las 6 fases del ciclo de vida de las vistas. 
+
+			El comportamiento de este servlet puede ser configurado ampliando su comportamiento por defecto en el fichero web.xml mediantepropiedades en tag <context-param>
+
+				javax.faces.CONFIG_FILES -> Define una lista delimitada por comas de directorios de recursos relativos al contexto donde la implementación de JSF puede ver recursos.
+				
+				javax.faces.DEFAULT_SUFFIX -> Habilita una lista de prefijos para la aplicación web que tengan contenido JSF.
+				
+				javax.faces.FACELETS_BUFFER_SIZE -> Tamaño del buffer de la resùesta. Por defecto es −1 que no asigna un tamaño de buffer a al respuesta.
+				
+				javax.faces.FACELETS_REFRESH_PERIOD -> Cuando un apágina lo requiere, tiempo en segundos que debe esperar el compilador para buscar cambios. Un valor de -1 deshabilita esta acción.
+				
+				javax.faces.FACELETS_SKIP_COMMENTS -> Si está a true, la ejecución se asgura de que lso comentarios no viajen al cliente.
+				
+				javax.faces.LIFECYCLE_ID -> Identifica la instancia de Lifecycle que será utilizada cuando se procesan JSF.
+				
+				javax.faces.STATE_SAVING_METHOD -> Define la localización cuando se salvan lso estados:
+					- server -> Valor por defecto. Almacena los elementos en HttpSession.
+					- client -> Almacena lso elementos en campos ocultos en el formualrio que haga submit.
+				
+				javax.faces.PROJECT_STAGE -> Describe el entorno de JSF (Development, UnitTest, SystemTest,
+				o Production). Puede ser utilizado por una implementación de recursos en caché para ejecutar diferentes entornos.
+				
+				javax.faces.DISABLE_FACELET_JSF_VIEWHANDLER ->  Si se pone true, Desahbilita el lenguaje PDL com opor defecto para los Facelets
+				
+				javax.faces.WEBAPP_RESOURCES_DIRECTORY -> DEtermina elpath donde se localizan lso recursos de la aplciación web.
+				
+				javax.faces.LIBRARIES -> Lista de paths separados por punto y coma donde se incluyen las librerías de Facelets.
+
+			También puede ser configurado en el fichero faces-config.xml (/WEB-INF/faces-config.xml). Esta condifuración también puede ser mantenida mediante anotaciones. Ejemplo de fichero:
+
+				<?xml version='1.0' encoding='UTF-8'?>
+				<faces-config 
+					xmlns="http://xmlns.jcp.org/xml/ns/javaee"
+					xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+					xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee http://xmlns.jcp.org/xml/ns/javaee/web-facesconfig_2_2.xsd"
+					version="2.2"
+				>
+					<application>
+						<locale-config>
+							<default-locale>fr</default-locale>
+						</locale-config>
+						<resource-bundle>
+							<base-name>messages</base-name>
+							<var>msg</var>
+						</resource-bundle>
+					</application>
+					<navigation-rule>
+						<from-view-id>*</from-view-id>
+						<navigation-case>
+							<from-outcome>doCreateBook-success</from-outcome>
+							<to-view-id>/listBooks.htm</to-view-id>
+						</navigation-case>
+					</navigation-rule>
+				</faces-config>
+
+		avax.faces.context.FacesContext Es al clase abstracta que permite crear las respuestas después de procesar las peticiones. Crea la interacción entre UI y el resto de elementos de JSF. La referencia a este objeto se puede obtener, a través de las páginas desde los objetos inyectados facesContext o desde lso beans almacenados con un allamada estática getCurrentInstance(), que obtiene la instancia de FacesContext del hilo actual. Contiene los siguientes métodos:
+
+			addMessage -> Añade un mensaje de tipo information, warning, error, o fatal.
+			
+			getApplication -> Obtiene la instancia asociada con la aplicación web.
+			
+			getAttributes -> Devuelve un mapa que representa los atributos asociados a la instanciade  FacesContext.
+			
+			getCurrentInstance -> Obtiene la instancia de FacesContext asociada a la respuesta del hilo actual.
+			
+			getELContext -> Devuelve el contexto de la instancia ELContext del actual FacesContext.
+			
+			getMaximumSeverity -> Devuelve el nivel de segveridad máxima de lso mensajes almacenados en FacesMessages que haya sido encolado.
+			
+			getMessages -> Devuelve al colección de FacesMessage.
+			
+			getPartialViewContext -> Devuelve el objeto PartialViewContext para esta petición. Se usa para inyectar lógica en los procesamientos/renderizados en buqule com opor ejemplo los procesos Ajax.
+			
+			getViewRoot -> Devuelve el root del componente asociado a esta petición.
+
+			release -> Libera cualquier recurso asociado a la instancia FacesContext.
+			
+			renderResponse -> Lanza una señal a la implementación JSF implementation para que, en cuento la fase de request-processing del ciclo de vida haya sido terminada el control pase a la fase de renderización de la respuesta, saltándose cualquier otra fase que no haya sido ejecutada.
+			
+			responseComplete -> Lanza una señal a la implementación de JSF para que se genere la respuesta HTTP de esta petición, de tal forma que el procesado de al request del ciclo de vida termina en cuanto se complete la fase actual..
+
+	Convertidores: Permite transformar las cadenas incluidas en los formularios a Objetos en el servidor y viceversa.
+
+		avax.faces.convert.* -> Es el paquete que contiene las implementaciones básicas de convertidores
+
+			BigDecimalConverter -> De cadena a java.math.BigDecimal y viceversa.
+			BigIntegerConverter -> De cadena a java.math.BigInteger y viceversa.
+			BooleanConverter -> De cadena a Boolean (y boolean primitivo) y viceversa.
+			ByteConverter -> De cadena a Byte (y byte primitivo) y viceversa.
+			CharacterConverter -> De cadena a Character (y char primitivo) y viceversa.
+			DateTimeConverter -> De cadena a java.util.Date y viceversa.
+			DoubleConverter -> De cadena a Double (y double primitivo) y viceversa.
+			EnumConverter -> De cadena a Enum (y enum primitivo) y viceversa.
+			FloatConverter -> De cadena a Float (y float primitivo) y viceversa.
+			IntegerConverter -> De cadena a Integer (y int primitivo) y viceversa.
+			LongConverter -> De cadena a Long (y long primitivo) y viceversa.
+			NumberConverter -> De cadena a java.lang.Number y viceversa.
+			ShortConverter -> De cadena a Short (y short primitivo) y viceversa.
+
+		Los tags utilizados para las conversiones son: <f:convertNumber currencySymbol="$" type="currency"/> y <f:convertDateTime pattern="MM/dd/yy"/>
+
+		Es posible crear convertidores customizados extendidendo una clase de javax.faces.convert.Converter. 
+
+			Esta interfaz tiene dos métodos:
+
+				Object getAsObject(FacesContext ctx, UIComponent component, String value) -> Ejecuta al transformación de cadena a Objeto.
+
+				String getAsString(FacesContext ctx, UIComponent component, Object value) -> Ejecuta al transformación de objeto a cadena.
+
+			Los convertidores customizados deben incluir la antación @FacesConverter o bien ser definidos en el fichero de configuración: faces-config.xml
+
+			Ejemplo de implementación:
+
+				@FacesConverter("euroConverter")
+				public class EuroConverter implements Converter {
+				
+					@Override
+					public Object getAsObject(FacesContext context, UIComponent component, String value) {
+						return value;
+					}
+					
+					@Override
+					public String getAsString(FacesContext ctx, UIComponent component, Object value) {
+						float amountInDollars = Float.parseFloat(value.toString());
+						double ammountInEuros = amountInDollars * 0.8;
+						DecimalFormat df = new DecimalFormat("###,##0.##");
+						return df.format(ammountInEuros);
+					}
+				}
+
+			Ejemplo de uso:
+
+				<h:outputText value="#{book.price}"/> // Implementación por defecto
+				<h:outputText value="#{book.price}"> // Convertidor a euros
+					<f:converter converterId="euroConverter"/>
+				</h:outputText>
+				// Convertidor a euros de forma simplificada
+				<h:outputText value="#{book.price}" converter="euroConverter"/> 
+
+	Validadores: Ejercen el primer nivel de validación del servidor
+
+		javax.faces.validator.* -> Incluye las clases de validación por defecto:
+
+			DoubleRangeValidator -> Determina si un valor double se encuentra entre dos límites mínimo y máximo.
+
+			LengthValidator -> Determina que el número de caracteres de una cadena.
+
+			LongRangeValidator -> Determina si un valor long se encuentra entre dos límites mínimo y máximo.
+
+			MethodExpressionValidator -> Ejecuta un método encargado de validar el objeto pasado por parámetro.
+
+			RequiredValidator -> Es equivalente a establecer el atributo de los comenentes requitred a true.
+
+			RegexValidator -> Determian si el valor cumple o no un determinado patrón.
+
+		Es posible crear validadores customizados con la interfaz javax.faces.validator.Validator. Esta incluye un método: 
+
+			void validate(FacesContext context, UIComponent component, Object value) -> Encargado de ejecutar la validación
+
+		Los validadores customizados deben incluir la anotación @FacesValidator o bien ser definidos en el fichero de configuración: faces-config.xml
+
+		Ejemplo de implementación: 
+
+			@FacesValidator("isbnValidator")
+			public class IsbnValidator implements Validator {
+				private Pattern pattern;
+				private Matcher matcher;
+				
+				@Override
+				public void validate(FacesContext context, UIComponent component, Object value) 
+					throws ValidatorException {
+
+					String componentValue = value.toString();
+					pattern = Pattern.compile("(?=[-0-9xX]{13}$)");
+					matcher = pattern.matcher(componentValue);
+					if (!matcher.find()) {
+						String message = MessageFormat.format(
+							"{0} not a valid isbn format",
+							componentValue
+						);
+						FacesMessage facesMessage = new FacesMessage(
+							FacesMessage.SEVERITY_ERROR,
+							msg,
+							msg
+						);
+						throw new ValidatorException(facesMessage);
+					}
+				}
+			}
+
+		Ejemplo de Uso:
+
+			// Validador como atributo
+			<h:inputText value="#{bookController.book.isbn}" validator="isbnValidator"/>
+
+			// Validador como Tag
+			<h:inputText value="#{bookController.book.isbn}">
+				<f:validator validatorId="isbnValidator" />
+			</h:inputText>
+
+		Es posible incluir valdiaciones de Beans. Ejemplo:
+
+			<f:validateBean validationGroups="org.agoncal.book.javaee7.Delivery">
+				<h:inputText value="#{bookController.book.title}"/>
+				<h:inputText value="#{bookController.book.price}"/>
+			</f:validateBean>
+
+	Peticiones Ajax: 
+		Instalación: Para poder ejecutar peticiones ajax, es necesario importar una librería especial JSF: <h:outputScript name="jsf.js" library="javax.faces" target="head"/>. Esta línea renderiza una etiqueta <script> con un ficheo .js alojado en META-INF/resources/javax/faces. 
+
+		Esta libería habilita habilita la función: jsf.ajax.request(ELEMENT, |EVENTS|, |{ OPTIONS }|); donde:
+			ELEMENT -> Es cualquier componente XHTML que lanza el evento petición ajax.
+			EVENTS -> Es una lista de eventos soportados sobre el elemento (onmousedown, onclick, onblur...)
+			OPTIONS -> Es un objeto qu epuede contener 0, 1 o dos atributos:
+
+				execute:'<Identificadores de componentes UI separados por espacio>': Envía la lista identificadores de componentes al servidor para ques ean procesadas durante al fase de ejecución de al petición.
+				
+				render:'<Identificadores de componentes UI separados por espacio>': Renderiza la lista de componentes identificados por el valor del atributo que deben ser procesadas durante la fase de renderizado de la petición.
+
+		Ejemplo:
+
+			<h:commandButton
+				value="Create a book"
+				onclick="jsf.ajax.request(
+					this,
+					event,
+					{
+						execute:'isbn title price description nbOfPage illustrations',
+						render:'booklist'
+					}
+				); return false;"
+			actionListener="#{bookController.doCreateBook}" />
+
+		También se puede utilizar de una forma declarativa a partir de JSF 2. Esta froma declarativa utiliza etiquetas y necesita de valores especiales para los atribtuos de al etiqueta ajax:
+
+			@all-> Renderiza o ejecuta todos los componentes de al vista.
+			@none -> No renderiza o No ejecuta ningún compoenete de la vista. Es el valor por defecto
+			@this -> Renderiza o ejecuta solo este componente. El que lanzó la petición ajax.
+			@form -> Renderiza o ejecuta todos los componentes de este formulario. El que ejecutó la petición ajax.
+			Lista separada por identificadores -> Uno o más identificadores de componete que deben ser renderizados o ejecutados.
+			EL -> Expresión que se resuelve como una Coleción de cadenas
+
+			Ejemplo:
+				<h:commandButton value="Create a book" action="#{bookController.doCreateBook}">
+					<f:ajax execute="@form" render=":booklist"/>
+				</h:commandButton>
+
+

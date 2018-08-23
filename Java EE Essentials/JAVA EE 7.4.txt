@@ -1,0 +1,754 @@
+[JAVA EE 7] Capítulo 4-5-6: Java Persistence API
+------------------------------------------------
+
+Entities -> Son la unidad de persistencia y son instancias de clases que tienen vida en la memoria de Java y en una base de datos. Los objetos sobre los que se crean las Entidades son conocidos como Plain Old Java Object (POJO). Estas unidades pueden ser gestionadas por JPA y siguien las siguientes reglas:
+
+	- Un POJO debe ser anotado con @javax.persistence.Entity o ser marcado como tal en un fichero xml de configuración
+	
+	- Se debe usar la anotación @javax.persistence.Id para denotar la primary key
+	
+	- Debe tener al menos un constructor sin argumentos protected o public.
+	
+	- Los enum y las interface no pueden ser entidades.
+	
+	- No la clase ni los métodos utilizados en la persistecia de la Entidad pueden ser final
+	
+	- Si se van a establecer comunicaciones con agentes externos pasando la entidades, estan deben ser serializables
+
+Ejemplo:
+
+	@Entity
+	public class Book {
+		@Id @GeneratedValue
+		private Long id;
+		private String title;
+		private Float price;
+		private String description;
+		private String isbn;
+		private Integer nbOfPage;
+		private Boolean illustrations;
+		
+		public Book() {
+		}
+		// Getters, setters
+	}
+
+	Metadatos -> Para efectuar los mapeos entre las tablas de la base de datos y los POJOS, Java EE utiliza los Metadatos. Estos metadatos pueden ser definidos mediante Anotaciones o mediante el fichero XML en el jar donde se encuentra la Entidad. Estos metadatos siguen la máxima de programación por excepción, por la cual, solo se define aquello que sea dierente a la convención establecida, lo que no se define, por tanto, sigue una regla preestablecida.
+
+	Para poder operar con las entidades sobre la base de datos de forma genérica a cualquier Base de Datos, java utiliza JPQL y el uso de un api. Este tipo de querys se pueden generar en tiempo de cmpilación o pueden ser estáticas. Las querys estáticas se alamcenan en el atributo @NamedQuery o en el fichero xml de metadatos.
+
+	Ejemplo:
+
+		public class Main {
+			public static void main(String[] args) {
+
+				// 1-Creates an instance of book
+				Book book = new Book("H2G2", "The Hitchhiker's Guide to the Galaxy", 12.5F, "1-84023-742-2", 354, false);
+				
+				// 2-Obtains an entity manager and a transaction
+				EntityManagerFactory emf = Persistence.createEntityManagerFactory("nombreUnidadPersistencia");
+				EntityManager em = emf.createEntityManager();
+				
+				// 3-Persists the book to the database
+				EntityTransaction tx = em.getTransaction();
+				tx.begin();
+				em.persist(book);
+				tx.commit();
+				
+				// 4-Executes the named query
+				book = em.createNamedQuery("findBookH2G2", Book.class).getSingleResult();
+				
+				// 5-Closes the entity manager and the factory
+				em.close();
+				emf.close();
+			}
+		}
+
+	Unidad de persistencia (persistence.xml) -> Este fichero define la unidad de persistencia, Datos de conexión a la base de datos, Clases que deben ser persistidas y asigna a esa unidad un nombre.
+
+	Ejemplo:
+
+		<?xml version="1.0" encoding="UTF-8"?>
+		<persistence xmlns="http://xmlns.jcp.org/xml/ns/persistence"
+			xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+			xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/persistence http://xmlns.jcp.org/xml/ns/persistence/persistence_2_1.xsd"
+			version="2.1"
+		>
+				<persistence-unit name="nombreUnidadPersistencia" transaction-type="RESOURCE_LOCAL">
+				<provider>org.eclipse.persistence.jpa.PersistenceProvider</provider>
+				<class>org.agoncal.book.javaee7.chapter04.Book</class>
+				<properties>
+					<property name="javax.persistence.schema-generation-action" value="drop-and-create"/>
+					<property name="javax.persistence.schema-generation-target" value="database"/>
+					<property name="javax.persistence.jdbc.driver" value="org.apache.derby.jdbc.ClientDriver"/>
+					<property name="javax.persistence.jdbc.url" value="jdbc:derby://localhost:1527/chapter04DB;create=true"/>
+					<property name="javax.persistence.jdbc.user" value="APP"/>
+					<property name="javax.persistence.jdbc.password" value="APP"/>
+				</properties>
+			</persistence-unit>
+		</persistence>
+
+	Estados de la persistencia -> Para que un POJO tenga conexión con la base de datos, además, de tener las anotaciones pertinentes, debe ser enlazado. Mientras está enlazado con la base de datos, Se pueden efectuar operaciones sobre el objeto que darán como resultado una operación sobre la base de datos. Las distintas operacines que se pueden ejecutar y que pueden ser objeto de escucha desde JavaEE con callbacks son:
+
+		- persisting -> Insert ->	(@PrePersist, @PostPersist)
+		- updating -> 	Update ->	(@PreUpdate, @PostUpdate)
+		- removing ->	Delete -> 	(@PreRemove, @PostRemove)
+		- loading -> 	Select ->	(@PostLoad)
+
+	Integración con Validaciones -> JPA permite la integración con las validaciones del capítulo anterior. Estas valdiaciones se llevana cabo cada vez que se realzia una oepración sobre la entidad.
+
+		Ejemplo:
+
+			@Entity
+			public class Book {
+				
+				@Id @GeneratedValue
+				private Long id;
+				
+				@NotNull
+				private String title;
+
+				private Float price;
+				
+				@Size(min = 10, max = 2000)
+				private String description;
+				
+				private String isbn;
+				
+				private Integer nbOfPage;
+				
+				private Boolean illustrations;
+				// Constructors, getters, setters
+			}
+
+Mapeos: Se va a tratar la forma de relcionar las entidades con las tabals de la base de datos. Estas relaciones se pueden efectuar mediante anotaciones:
+
+	@Table -> Permite relacionar una clase con una tabla. Sus atribtuos son:
+		name="string" -> Opcional. Permite asignar un nombre diferente al de la clase en la base de datos
+
+	@SecondaryTables{@SecondaryTable} -> Permite que una entidad dsitribuya sus datos entre diferentes tablas. Sus atirbutos son:
+		name="string" -> Obligatorio. Permite asignar un nombre de tabla secundario. Ese será utilizado por los atributos de la Entidad en la anotación @Column para saber a qué tabla secundario va cada atributo.
+
+	@Id -> Permite establecer la Primary Key a un atributo de Entidad. Solo se puede asignar a los siguientes tipos:
+
+		- Tipos primitivos: byte, int, short, long, char.
+		- Clases que representan los tipos primitivos: Byte, Integer, Short, Long, Character.
+		- Arrays de tipos primitivos y representaciones: int[], Integer[], etc.
+		- Strings, numbers, and dates: java.lang.String, java.math.BigInteger, java.util.Date, java.sql.Date
+
+	@GeneratedValue -> Permite añadir a la Primary Key una estrategia de generación de identificadores únicos. Si no se incluye, el id debe añdirlo la aplicación. Sus atribtuos son:
+		strategy="GenerationType" -> Permite especificar un tipo de generación de ids. Existen diferentes tipos:
+
+			- SEQUENCE -> Hace uso de una SEQUENCE de la base de datos.
+			- IDENTITY -> Hace uso de una IDENTITIY de la base de datos.
+			- TABLE -> Le dice al proveedor de persistencia, que guarde el nombre de la secuencia y su valor corriente en una tabla. Incrementando el valor corriente cada vez que se pesista una nueva instancia de Entidad.
+			- AUTO -> Es el valor por defecto. El propio proveedor de de persistencia se encarga de seleccionar el mejor de los casos para cada Base de datos con una 
+
+	@Embeddable -> Determina que una clase no tiene entidad por si misma y formará parte intrínseca de otra entidad.
+
+	@Embedded -> Permite que un atributo de una clase embebible sea parte de la tabla de la Entidad.
+
+	@EmbeddedId -> Permite crear identificadores conpuestos para una Entidad. Los objetos embebidos no tienen una Primary Key entre sus atribtuos. Sabido esto, la clase que define el atributo debe ser @Embeddable. Estas clases deben implementar los métodos equals y hashCode. Ejemplo:
+
+		@Embeddable
+		public class NewsId {
+			private String title;
+			private String language;
+			// Constructors, getters, setters, equals, and hashcode
+		}
+
+		@Entity
+		public class News {
+
+			@EmbeddedId
+			private NewsId id;
+			private String content;
+			// Constructors, getters, setters
+		}
+
+		Las consultas en este caso serían del tipo:
+
+			select n.newsId.title from News n
+
+	@IdClass -> Permite crear identificadores compuestos para una Entidad. En este caso, los atributos de identificación se trasladan a la clase Entidad. La calse que define el identificador compuesto tb debe definir los métodos hashCode y equals. Con este método se permite hacer consultas del tipo:
+
+		select n.title from News n
+
+		Ejemplo:
+
+			public class NewsId {
+				private String title;
+				private String language;
+				// Constructors, getters, setters, equals, and hashcode
+			}
+
+			@Entity
+			@IdClass(NewsId.class)
+			public class News {
+
+				@Id private String title;
+				@Id private String language;
+				
+				private String content;
+				// Constructors, getters, setters
+			}
+
+	@Basic -> Es el atributo más sencillo para mapear una columna con un atributo de entidad. Contiene dos atributos:
+		optional -> Determina la obligatoriedad del campo en la base de datos.
+		fetch -> Admite valores del enumerado: FetchType para determinar cómo se obtienen los datos de la columna:
+			LAZY: Los datos se recogen solo cuando la aplicación pregunta por la propiedad.
+			EAGER: Los datos se recogen cuando la Entidad es cargada por el proveedor.
+
+		Su implementación es:
+
+			@Target({METHOD, FIELD}) @Retention(RUNTIME)
+			public @interface Basic {
+				FetchType fetch() default EAGER;
+				boolean optional() default true;
+			}
+
+	@Column -> Permite una configuracón de la columna más avanzada que al anterior.
+
+		Sus atributos son:
+			name -> Permite cambiar el nombre de la columna
+			unique -> Determina si el registro debe ser único o no en al base de datos.
+			nullable -> Permite valores nulos o no en la Base de datos.
+			insertable -> Determina si el campo debe poder ser insertado en la base de datos a partir de modificaciones en la entidad.
+			updateable -> Determina si el campo debe poder ser actualizado en la base de datos a partir de modificaciones en la entidad.
+			columnDefinition -> Fragmento de código SQL para la generación del DDL del campo.
+			table -> Para que la columna pertenezca a otra tabla.
+			length -> Longitud de las cadenas. Para columnas decimales
+			precision -> Precisión de los números. Parac olumans decimales
+
+		Su implementación es:
+
+			@Target({METHOD, FIELD}) @Retention(RUNTIME)
+			public @interface Column {
+				String name() default "";
+				boolean unique() default false;
+				boolean nullable() default true;
+				boolean insertable() default true;
+				boolean updatable() default true;
+				String columnDefinition() default "";
+				String table() default "";
+				int length() default 255;
+				int precision() default 0; // decimal precision
+				int scale() default 0; // decimal scale
+			}
+
+	@Temporal -> Permite fijar columnas con valores de fecha. Admite varias preciones definidas por el enumerado: TemporalType
+
+		DATE: La fecha.
+		TIME: La hora.
+		TIMESTAMP: Ambas.
+
+	@Transient -> Permite que un atributo de la entidad no tenga iteracción ninguna con la base de datos.
+
+	@Enumerated -> Por defecto, los enumerados en JPA se guardan en base de datos en función de su oridnal, es decir, de la posición que ocupan en el código. Este comportameinto se puede modificar con la anotación enumerated que acepta un valor de tipo EnumType:
+
+		ORDINAL -> Valor por defecto. Guarda la posición del elemento dentro del eneumerado.
+		STRING -> Guarda el nombre del enumerado.
+
+	@Access -> Permite especificar el tipo de acceso a los atributos de la entidad. Ya sea a través de los atributos o de los getters. Es decir: Donde se van a poner las anotaciones. Se puede poner en la clase, para especificar de forma general el acceso a todos los atributos de la entidad o en un getter o atributo determinado para forzar el acceso para esa columna. Acepta valores del enumerado AccessType:
+
+		PROPERTY -> Las anotaciones se asocian a los getters
+		FIELD -> Las anotaciones se asocian a los atributos. Este es el valor por defecto
+
+	@ElementCollection -> Determina que un atributo contiene una colección de instancias de datos.
+		fetch -> Admite valores del enumerado: FetchType para determinar cómo se obtienen los datos de la columna.
+		targetClass -> Si el tipo se define en la lista, este atributo no es necesario. Solo hace fatla si se trata con genericidad.
+	
+	@CollectionTable -> Permite especificar las propiedades de la tabla asociada a un atributo colección. Permite además ciertas propieaddes para Objetos complejos (TODO)
+		name -> Permite cambiar el nombre de la tabla asociada 
+
+	@MapKeyColumn -> Permite mapaear mapas con un tabla de colecciones. Se usa en asociación a las dos anteriores anotaciones y permite especificar el nombre de la clumna que alverga las claves del mapa.
+		name -> El valor por defecto es [el nombre de la tabla_KEY].
+
+	Atributos de relación de tablas: 
+
+		Todos aquellos utilizados para relaciones tablas entre sí. Son:
+
+			@OneToOne -> Establece una relación Uno a uno en la que la tabla de la derecha existe dentro de la de la izquierda con una sola instancia de objeto. fetch por defecto EAGER
+
+			Su definición es:
+
+				@Target({METHOD, FIELD}) @Retention(RUNTIME)
+				public @interface OneToOne {
+					Class targetEntity() default void.class;
+					CascadeType[] cascade() default {};
+					FetchType fetch() default EAGER;
+					boolean optional() default true;
+					String mappedBy() default "";
+					boolean orphanRemoval() default false;
+				}
+
+			@OneToMany -> Establece una relación de tablas uno a n. La tabla de la derecha puede estar contenida de uno a n veces en la de la izquierda. Por defecto, el comportamiento de esta anotación es de crear una tabla intermedia como si se fuera a tratar una relación n a n. El comportamiento de la relación puede cambiarse con la anotación @JoinTable. Pero además, puede cambiarse el comprotamiento por defecto para que la unión se haga con una solo Foreign Key utilizando la anotación: @JoinColumn en vez de la anterior. fetch por defecto LAZY
+
+			@ManyToOne -> Establece una relación de tablas n a uno. La tabla de la izquierda puede estar contenida de uno a n veces en la de la derecha. No contiene una tributo mappedBy. fetch por defecto EAGER
+
+			@ManyToMany -> Establece una relación n a n entre dos tablas. Es importante establecer en el @ManyToMany de la tabla contenida el atributo mappedBy para que la implementación del transformador de entidades entienda que se trata de uan relación n a n pura bidireccional y no de dos 1 a n con tablas distintas. fetch por defecto LAZy
+ 
+			Ejemplo:
+
+				@Entity
+				public class Artist {
+					@Id @GeneratedValue
+					private Long id;
+
+					private String firstName;
+					private String lastName;
+
+					@ManyToMany
+					@JoinTable(
+						name = "jnd_art_cd",
+						joinColumns = @JoinColumn(name = "artist_fk"),
+						inverseJoinColumns = @JoinColumn(name = "cd_fk")
+					)
+					private List<CD>appearsOnCDs;
+					// Constructors, getters, setters
+				}
+
+				@Entity
+				public class CD {
+
+					@Id @GeneratedValue
+					private Long id;
+
+					private String title;
+					private Float price;
+					private String description;
+
+					@ManyToMany(mappedBy = "appearsOnCDs")
+					private List<Artist> createdByArtists;
+
+					// Constructors, getters, setters
+				}
+
+		Atributos de las anotaciones de relación:
+
+			mappedBy -> Todos los atribtuos relacionales menos @ManyToOne, tienen una propiedad que les permite establecer una relación bidireccional. Es decir, que desde el objeto contenido en otro objeto, se puede acceder al objeto que lo contiene. Se utiliza el atributo:  que se incluye en el objeto contenido para indiciar el objeto de la clase contenedora que contiene la relación.
+
+				Ejemplo: En este ejemplo, Custemer contiene un Address. Customer, por tanto, es el dueño de address_fk (Columna foreign Key que existirá en la tabla Customer) y Address tiene una referencia a su contenedor que hace quie la relación sea Uno a Uno Bidireccional
+
+					@Entity
+					public class Customer{
+
+						@Id @GeneratedValue
+						private Long id;
+
+						private String firstName;
+						private String lastName;
+						private String email;
+						private String phoneNumber;
+
+						@OneToOne
+						@JoinColumn(name="address_fk")
+						private Address address;
+
+					}
+
+					@Entity
+					public class Address{
+
+						@Id @GeneratedValue
+						private Long id;
+
+						private String street1;
+						private String stree2;
+						private String city;
+						private String state;
+						private String zipcode;
+						private String country;
+
+						@OneToOne(mappedBy="address")
+						private Customer customer;
+					}
+
+			orphanRemoval -> Este atributo indica si aquellos objetos que se queden huérfanos de padre pueden ser objetivo del porveedor de persistencia para ser borrados del contexto y de la base de datos.
+
+			cascade -> Determina una lista de elementos de tipo CascadeType que discierna que operaciones deben ejecutarse en cascada para una operación de persistencia. Existen varios tipos (REMOVE,PERSIST,MERGE,REFRESH,DETACH,ALL)
+
+		@JoinColumn -> Establece que un atributo de una clase sea Clave foranea de otra. Se puede sobreescribir el nombre de la clave foránea mediante el atributo name. Por defecto, este nombre es "TABLA REFERENCIADA_ID" y establecer otras propiedades típicas de @Column.
+
+		@JoinTable -> Permite sobreescribir las propiedades de la creación de una tabla de identificación N a N. Su definición es:
+
+			@Target({METHOD, FIELD}) @Retention(RUNTIME)
+				public @interface JoinTable {
+				String name() default ""; // El nombre p0or defecto es (NOMBRE TABLA 1_NOMBRE TABLA 2_ID)
+				String catalog() default "";
+				String schema() default "";
+				JoinColumn[] joinColumns() default {}; // Especifica uniones de la tabla propietaria
+				JoinColumn[] inverseJoinColumns() default {}; // Especifrica uniones de la tabla secundaria
+				UniqueConstraint[] uniqueConstraints() default {};
+				Index[] indexes() default {};
+			}
+
+	@OrderBy -> Con esta anotación es posible indicar una ordenación para los casos en los que se recupere una lista sin necesidad de ejecutar querys. Esta anotación solo permite ordenar consultas, no persistencias. Admite una cadena en la que se espcifican los atribtuos de la ordenación y el tipo. ASC o DESC. Cada bloque de ordenación se separa por comas.
+
+		Ejemplo:
+
+			@Entity
+			public class News {
+
+				@Id @GeneratedValue
+				private Long id;
+
+				@Column(nullable = false)
+				private String content;
+
+				@OneToMany(fetch = FetchType.EAGER)
+				@OrderBy("postedDate DESC")
+				private List<Comment> comments;
+
+				// Constructors, getters, setters
+			}
+
+	@OrderColumn -> Permite persistir el orden de la lista almacenada en memoria en la base de datos. Para ello utiliza una columna añadida a la tabla relacional con un entero que marca el orden de los elementos en la lista. La desventaja es que cada vez que se modifica el orden de un elemento, se reindexa toda la tabla. El nombre de al columna por defecto se forma con NOMBRE DEL ATRIBUO_ORDER o puede ser sobreescrito pasando valor a la anotación. Esta no se puede usar junto con @OrderBy.
+
+	Atributos relacionados con la herencia: Jpa utiliza tres estrategias para organizar la herencia en las tablas. Cada una de estas tres tiene una equivalencia en el valor de una anotación:
+
+	 	@Inheritance -> El valor pasado a la anotación es del tipo javax.persistence.InheritanceType
+
+			Unión en una única tabla -> Valor por defecto
+			InheritanceType.JOINED: -> Cada clase se asignana a una nueva tabla con una estrategia de unión (Join)
+			InheritanceType.TABLE_PER_CLASS -> Creación de una tabla por cada clase concreta con una estartegia de unión (Join). En este caso se crea una tabla por cada clase hija y por cada clase padre, pero en las hijas, también se incluyen las columnas de los padres.
+
+		@DiscriminatorColumn -> Permite sobreescribir los valores por defecto para la columna de discriminación de la herencia. Por defecto, esta columna tiene el nombre DTYPE y es del tipo String. En el caso de tablas de tipo JOINED, esta columna solo se incluye en la tabla de la entidad padre.
+
+		@DiscriminatorValue -> Permite cabiar el valor por defecto de la columna discriminadora para cada una de las entidades que serán guardads en una misma tabla. El valo por defecto es el nombre de la entidad.
+
+		@AttributeOverrides, @AttributeOverride -> Esta anotación permite, en las clases hijas y para el tipo InheritanceType.TABLE_PER_CLASS, sobreescribir el nombre de los artibutos oyectados en las tablas hijas con nombres diferentes a los de la tabla padre.
+
+		@MappedSuperclass -> Esta anotación se puede añadir a las clases padre para decir que aunque no son entidades, y por tanto no generan tablas ni pueden tratarse como entidades de cara a la persistencia o query, sus atribtuos si deben propagarse a las clases hijas en la persistencia.
+
+Gestión de persistencia. JPA permite, además de mapear las entidades y generar las Bases de datos, operar con esos elementos de persistencia. Para ello se utiliza un sistema gestionado en un contexto de persistencia con un gestor de Entidades.
+	
+	Gestor de Entidades -> Es una de las piezas centras de JPA. Maneja el estado, el ciclo de vida de las entidades y permite ejecutar querys contra la entidades en un determinado contexto. 
+
+	El gestor de Entidades gestiona una entidad cuando recibe una referencia a la entidad, hasta que eso no courre, el objeto en memoria se trata como un simple POJO. De esta forma, es posible tratar en java los objetos como POJOS o como Entidades dependiendo de las diferentes capas de la aplicación en las que se mueva el objeto. Los dos estados por tanto del objeto pueden ser "detached" (simple POJO) o "managed" (Está gestionado por el Entity Manager). 
+
+	El gestor de entidades no es más que la implementación de una interfaz: javax.persistence.EntityManager.
+
+		void persist(Object entity) -> Crea una instancia manejada y persistente contra la base de datos cuando no existe en la misma. Si ya existiese, generaría un error. (Existe si los identificadores son iguales)
+		
+		<T> T find(Class<T> entityClass, Object primaryKey) -> Busca una Enitdad de la clase y prmiary key pasados por parámetro. Si no se encuetra el objeto, este método devuelve null.
+		
+		<T> T getReference(Class<T> entityClass, Object primaryKey) -> Busca una instancia cuyo estado de recuperación es LAZY. Es decir, obtiene solo el idnetificador de la instancia almacenado en un objeto que hasta que no se otenga por código sus datos no existirá allí. En caso de que no sencuentre el objeto, este método devuelve uan excepción.
+		
+		void remove(Object entity) -> Borra una instancia de Entidad del contexto de persistencia y de la base de datos, pero no de la memoria de Java. Por lo que aunque no existan datos en la Base de datos o en el Contexto, el objeto sigue existiendo en la memoria de java hasta que este apunte a null o se aobjeto del recolector de basura de java.
+
+		<T> T merge(T entity) -> Fusiona el estado del POJO no incluido en el contexto pasado por parámetro en el contexto de persistencia actual.
+
+		void refresh(Object entity) -> Actualiza el estado de la instancia en el contexto a partir de lo que haya en la base de datos sobreescribiendo los datos de la entidad en caso de que se hubieran producido.
+
+		void flush() -> Soncroniza el contexto de persistencia con la base de datos. Pero no hace commit, lo que quiere decir que los datos todavía pueden ser ojeto de un rollback para volver a su estado original. Al hacer flush solo se envía a la Base de datos lo que hay en el contexto pudiendo generar errores de claves foranes si los datos Join no estuvieran correctamente informados.
+
+		void clear() -> Limpia el contexto de persistencia. Desconectando todas las entidades de la base de datos y poniéndolas en estado "detached".
+
+		void detach(Object entity) -> Borra la enitdad pasada por parámetro del contexto de persistencia poniéndola en estado "detached".
+
+		boolean contains(Object entity) -> Determina si el objeto pasado por parámetro está contenido como entidad en el contexto de persistencia.
+
+	La obtención de la instancia del manejador se puede realizar de dos maneras:
+
+		En una aplicación gestionada mediante inyección de dependencias: (El gestor de dependecias se encarga de cerrar y abrir la factoría)
+
+			@Stateless
+			public class BookEJB {
+
+				@PersistenceContext(unitName = "chapter06PU")
+				private EntityManager em;
+				
+					public void createBook() {
+
+					// Creates an instance of book
+					Book book = new Book("H2G2", "The Hitchhiker's Guide to the Galaxy", 12.5F, 
+					"1-84023-742-2", 354, false);
+					
+					// Persists the book to the database
+					em.persist(book);
+				}
+			}
+
+		Mediante una factoría: (Se debe gestionar el cierre y la apertura de las transacciones)
+
+			// Obtain Factory
+			EntityManagerFactory emf = Persistence.createEntityManagerFactory("chapter06PU");
+			EntityManager em = emf.createEntityManager();
+			
+			// DO SOMETHING
+			...
+			
+			// Closes the entity manager and the factory
+			em.close();
+			emf.close();
+
+	La configuración del manejador de persistencia se incluye en el fichero persistence.xml que incluye entre otras las siguientes propiedades:
+
+		<persistence-unit> -> Unidad de persistencia. Define un nombre para una configuración de manejador.
+			<provider> -> Clase que implementa el proveedor de persistencia.
+			<class> -> De 0 a N. Clases que podrán ser persistidas.
+			<shared-cache-mode> -> Estado de la caché de segundo nivel. Puede contener los siguientes valores:
+
+				ALL -> Se cachean todas las entidades y sus entidades relacionadas por defecto.
+				DISABLE_SELECTIVE -> Se cachean todas las entidades y sus entidades relacionadas excepto aquellas anotadas con @Cacheable(false).
+				ENABLE_SELECTIVE: Solo se cachean las entidades y sus entidades relacionadas anotadas con @Cacheable(false).
+				NONE -> Se desactiva la caché de segundo nivel para para la unidad de persistencia.
+				UNSPECIFIED: No se especifica un comportamineto. Se recogerá el implementado por defecto para el porveedor seleccionado.
+
+			<properties><property name="" value="" /></properties> -> Conjunto de porpiedades asociadas a la unidad de persistencia. Las propiedades cuyo name comienzan por "javax.persistence" son estándar de JPA. Luego, cada proveedor puede tener sus propiedades. Las propiedades comunes son:
+
+				javax.persistence.jdbc.driver -> Classe que contiene el driver de conexión con la Base de datos
+				javax.persistence.jdbc.url -> Url de la conexión
+				javax.persistence.jdbc.user -> Nombre del usuario de conexión
+				javax.persistence.jdbc.password -> Password del usuario de conexión
+				javax.persistence.database-product-name -> Nombre de la base de datos objetivo
+				javax.persistence.database-major-version -> Versión máxima de la base de datos
+				javax.persistence.database-minor-version -> Versión mínima de la base de datos
+				javax.persistence.ddl-create-script-source -> Nombre del script que generará la base de datos. Si no se incluye, se generará desde las Entidades de Java.
+				javax.persistence.ddl-drop-script-source -> Nombre del script que elimina la base de datos. Si no se incluye, se eliminará desde las Entidades de Java.
+				javax.persistence.sql-load-script-source -> Nombre del script con datos iniciales a añadir a la base de datos.
+				javax.persistence.schema-generation.database.action -> Específica la acción a llevar a cabo cuando se inicia la base de datos (none, create, drop-and-create, drop)
+
+				javax.persistence.schema-generation.scripts.action -> Específica la acción a llevar a cabo sobre los scripts que genera JPA para atacar a la base de datos (none, create, drop-and-create, drop)
+				javax.persistence.schema-generation.scripts.create-target -> Fichero donde se almacenarán los scripts generados por JPA para la generación de al base de datos.
+				javax.persistence.schema-generation.scripts.drop-target -> Fichero donde se almacenarán los scripts generados pro JPA para la eleiminación de la base de datos
+
+				javax.persistence.lock.timeout -> Valor en milisegundos de duración para el bloqueo de la base de datos antes de lanzar un timeout.
+				javax.persistence.query.timeout -> Valor en milisegundos para la ejecución de querys antes de lanzar un timeout.
+				javax.persistence.validation.group.pre-persist -> Grupos destinados a la validación previa a la persistencia.
+				javax.persistence.validation.group.pre-update -> Grupos destinados a la validación previa a la actualización.
+				javax.persistence.validation.group.pre-remove -> Grupos destinados a la validación previa al borrado.
+
+
+	El contexto en el que viven las Entidades se denomina Contexto de persistencia. En un contexto de persistencia pueden convivir varias instancias de Enitdad, pero ninguna de ellas debe tener el mismo Identificador de Enitdad. 
+
+	El ciclo de vida de este contexto es: Una llamada a algún método del Entity Manager genera una Entidad en el Contexto de persistencia. Si no existe una entidad de mismo id dentro, se genera la Enitdad enlazándola con la base de datos. A partir de ese momento, y mientras dure la transacción, cualquier modificación sobre la entidad y dentro del contexto, producirá una cambio en la base de datos.
+
+	El contexto funciona como una caché de primer nivel previa al acceso a la base de datos que permite entre otras cosas ordenar las inserciones contra la abse de datos, gestionar los identificadores para evitar errores de base de datos, vincular y desvincular Entidades con la base de datos ...
+
+	Entre esta caché de primer nivel y la base de datos existe una caché de segundo nivel que permite gestionar varias transacciones de diferetnes contextos. JPA permite acceder a los datos de esta segunda caché a través de la interfaz javax.persistence.Cache. Una entidad puede ser registrada en esta caché de segundo nivel a través de la anotación @Cacheable que admite un valor booleano. La caché de segundo nivel se activa en el fichero persistence.xml. La interfaz caché:
+
+		public interface Cache {
+			
+			// Whether the cache contains the given entity
+			public boolean contains(Class cls, Object id);
+			
+			// Removes the given entity from the cache
+			public void evict(Class cls, Object id);
+			
+			// Removes entities of the specified class (and its subclasses) from the cache
+			public void evict(Class cls);
+			
+			// Clears the cache.
+			public void evictAll();
+			
+			// Returns the provider-specific cache implementation
+			public <T> T unwrap(Class<T> cls);
+		}
+	
+	Estas querys pueden ser agrupadas en varios bloques:
+
+		Dynamic queries -> Creación de un query de forma dinámica en tiempo de ejecución a partir de una cadena
+		
+		Named queries -> Son estática y no se pueden cambiar. Ce crean con una anotación en la Enitdad de Java. Son más eficientes que las anteriores proque se compilan una vez. Ejemplo:
+
+			@Entity
+			@NamedQuery(name = "findAll", query="select c from Customer c")
+			public class Customer {...}
+
+		Criteria API -> Aparecen a partir de JPA 2.0 y son las querys orientadas a objetos. Estas querys se van montando con objetos y métodos a partir de la clase CriteriaBuilder: http://www.objectdb.com/java/jpa/query/criteria. Para este tipo de generación de querys JPA genera una metamodelado que permite acceder a los nombres de los atributos de las Entidades a partir de constantes, la norma dice que por cada Entidad se crea una Clase Con el nombre de Enitdad más un _ que contiene una serie de constantes con la información de los atributos de al entidad.
+
+		Native queries -> Querys ejecutadas directamente con el lenguaje SQL. Pueden ser dinámicas o estáticas. Las querys estáticas tienen su propia anotaciones para ser definidas. Ejemplo:
+
+			@Entity
+			@NamedNativeQuery(name = "findAll", query="select * from t_customer")
+			@Table(name = "t_customer")
+			public class Customer {...}
+		
+		Stored procedure queries -> JPA 2.1 permite ejecutar procedimientos almacenados.
+
+	EntityManager tiene varios métodos para generar las querys:
+
+		Query createQuery(String jpqlString) -> Crea una instancia de query para ejecutar una declaración de JPQL dinámica.
+
+		Query createNamedQuery(String name) -> Crea una instancia de query para ejecutar una "named query" (en JPQL o SQL nativo)
+
+		Query createNativeQuery(String sqlString) Crea una instancia de query para ejecutar una query SQL.
+
+		Query createNativeQuery(String sqlString, Class resultClass) -> Crea una instancia de query para ejecutar una query SQL. El resultado se parsea a la clase pasada por parámetro.
+
+		Query createNativeQuery(String sqlString, String resultSetMapping) -> Named query con query nativa.
+
+		<T> TypedQuery<T> createQuery(CriteriaQuery<T> criteriaQuery) -> Crea una query con resultado tipado a partir de una QueryCriteria.
+
+		<T> TypedQuery<T> createQuery(String jpqlString, Class<T> resultClass) -> Crea una query tipada a partir de una query jpql.
+
+		<T> TypedQuery<T> createNamedQuery(String name, Class<T> resultClass) -> Crea una query tipada a partir de una named query.
+		
+		StoredProcedureQuery createStoredProcedureQuery(String procedureName) -> Crea una query para ejecutar un procedimineto de la base de datos
+
+		StoredProcedureQuery createStoredProcedureQuery(String procedureName, Class... resultClasses) -> Crea una qery para ejecutar un procedimiento especificando las clases del resultado
+		
+		StoredProcedureQuery createStoredProcedureQuery(String procedureName, String... resultSetMappings) -> 
+		Crea una query para ejecuta un procedimineto de la base de datos añadiendo los parámetros de salida.
+		
+		StoredProcedureQuery createNamedStoredProcedureQuery(String name) -> Crea una query para ejecuta un procedimineto de la base de datos a partir del nombre de una query creada.
+
+	Todos los objetos devueltos por los métodos de generación de querys, extienden de la interfaz Query que contiene los siguientes métodos:
+
+		public interface Query {
+			
+			// Executes a query and returns a result
+			List getResultList();
+			Object getSingleResult(); -> Lanza una excecpión en caso de que el dato obtenido no sea único
+			int executeUpdate(); -> Devuelve el número de elemntos afectados por la query
+			
+			// Sets parameters to the query
+			Query setParameter(String name, Object value);
+			Query setParameter(String name, Date value, TemporalType temporalType);
+			Query setParameter(String name, Calendar value, TemporalType temporalType);
+			Query setParameter(int position, Object value);
+			Query setParameter(int position, Date value, TemporalType temporalType);
+			Query setParameter(int position, Calendar value, TemporalType temporalType);
+			<T> Query setParameter(Parameter<T> param, T value);
+			Query setParameter(Parameter<Date> param, Date value, TemporalType temporalType);
+			Query setParameter(Parameter<Calendar> param, Calendar value, TemporalType temporalType);
+			
+			// Gets parameters from the query
+			Set<Parameter<?>> getParameters();
+			Parameter<?> getParameter(String name);
+			Parameter<?> getParameter(int position);
+			<T> Parameter<T> getParameter(String name, Class<T> type);
+			<T> Parameter<T> getParameter(int position, Class<T> type);
+			boolean isBound(Parameter<?> param);
+			<T> T getParameterValue(Parameter<T> param);
+			Object getParameterValue(String name);
+			Object getParameterValue(int position);
+			
+			// Constrains the number of results returned by a query
+			Query setMaxResults(int maxResult);
+			int getMaxResults();
+			Query setFirstResult(int startPosition);
+			int getFirstResult();
+			
+			// Sets and gets query hints
+			Query setHint(String hintName, Object value);
+			Map<String, Object> getHints();
+			
+			// Sets the flush mode type to be used for the query execution
+			Query setFlushMode(FlushModeType flushMode);
+			FlushModeType getFlushMode();
+			
+			// Sets the lock mode type to be used for the query execution
+			Query setLockMode(LockModeType lockMode);
+			LockModeType getLockMode();
+			
+			// Allows access to the provider-specific API
+			<T> T unwrap(Class<T> cls);
+		}
+
+	JPA también permite tener cierto control sobre la concurrencia de la base de datos. para ello implementa dos estrategias de bloqueo de fila:
+
+		Optimista -> Se basa en la presunción de que muchas transacciones no generan conflictos de tal forma que los bloqueos de tabal se producen al final de la transacción. Las trasnacciones que violan este tipo de bloqueo arrojan OptimisticLockException, por ejemplo si se cambia el tipo de lock, o se intenta forzar el bloqueo de la entidad desde otro de hilo de ejecución mientras está bloqueada.
+
+		Pesimista -> No soportada en JPA 1.0. Se basa en la presunción de que la mayoría de transacciones va a generar conflicto de esta forma, sale mejor bloquear la fila siempre que se genera uan transacción para no relaizar cálculos.
+
+	JPA habilita tanto en las querys como en la Gestor de entidades métodos para trabajar con los bloqueos:
+
+		Métodos del manejador de entidades:
+			
+			<T> T find(Class<T> entityClass, Object primaryKey, LockModeType lockMode) -> Busca una entidad de la clase especificada por parámetro por id y bloquea la fila con un tipo de bloquo.
+			
+			void lock(Object entity, LockModeType lockMode) -> Bloquea una entidad que exista en el Contexto de persistencia con un determinado tipo de bloqueo.
+
+			void refresh(Object entity, LockModeType lockMode) -> Sobreescribe el estado de la instancia de la Entidad por los datos de la base de datos, bloqueando la fila con el tipo pasado por parámetro.
+			
+			LockModeType getLockMode(Object entity) -> Obtiene el tipo actual de bloqueo ara la instancia pasad por parámetro.
+
+		Métodos de Query:
+
+			LockModeType getLockMode() -> Obtiene el tipo bloqueo para la query actual
+
+			Query setLockMode(LockModeType lockMode) -> Establece el tipo bloqueo para la query actual
+
+	Los tipos de bloqueo permitidos: 
+
+		OPTIMISTIC: Bloqueo optimista
+		OPTIMISTIC_FORCE_INCREMENT: Bloquo optimista que incrementa el valor de la columna de versionado
+		PESSIMISTIC_READ: Deprecado
+		PESSIMISTIC_WRITE: Deprecado
+		attempting to update the entity.
+		PESSIMISTIC_FORCE_INCREMENT: Bloqueo pesimista que fuerza el incremento de la versión de la entidad.
+		NONE -> No se usa mecanismo de bloqueo
+
+	El proveedor de persistencia, permite versionar atributos de una Entidad. El programador nunca podrá modificar ese atributo, solo puede hacerlo el proveedor de persistencia, pero si puede consultarlo. Ese atributo se modifica cada vez que el proveedor ejecuta una operación de modificación o se fuerza un versionado. Una columna es objeto de versionado si está anotada con @Version. Además, esta anotación establece que la caché de segundo nivel es Optimisitc por defecto.
+
+	Los diferentes estados en los que puede estar una entidad dentro del ciclo de vida de peristencia generan eventos que pueden ser manejados en el desarrollo a través de anotaciones:
+
+		@PrePersist -> Ejeucta el método antes de que la funciónEntityManager.persist() se aejecutada
+
+		@PostPersist -> Ejeucta el método después de que la funciónEntityManager.persist() se aejecutada. Los valores autogenerados para los identificadores ya aparecen en este método
+
+		@PreUpdate -> Ejeucta el método antes de que cabie el estado de la entidad engancahda con la base de datos.
+
+		@PostUpdate -> Ejeucta el método antes de que cabie el estado de la entidad engancahda con la base de datos.
+
+		@PreRemove Ejeucta el método antes de que la función EntityManager.remove() sea ejecutada
+
+		@PostRemove Ejeucta el método después de que la entidad sea borrada.
+
+		@PostLoad -> Ejeucta el método antes de que se cargue una entidad en contexto de Entidades mediante una query o el método find. No puede existire un Pre porque todavía no exista la entidad cargada cuando se ejecutan los métodos para cargar una entidad en el contexto.
+
+	Estos métodos se regien por uan serie de normas:
+
+		- Los métodos pueden ser public, private, protected, or package-level pero no static o
+		final.
+
+		- Un método puede ser anotado con varios callbacks. Sin embargo, en la misma entidad no puede exister más de uno del mismo tipo.
+
+		- Los métodos pueden arrojar excepciones no específicas. Pero no que extiendadn de Exception. Si arroja alguna de las excecpiones de las permitidas. Se ejecutará un rolback sobre la ejecución de la entidad en la base de datos.
+
+		- Se puede llamar a la base de datos a través de JNDI, JDBC, JMS, y EJBs pero no se puede crear un EntityManager o operaciones de Query.
+
+		- Si un método se define en una la clase padre , este será ejecutado antes de los métodos marcados de la clase hija.
+
+		- Si se usa un evento de cascado en la relación, los métodos de callbacl también serán llamados en el orden de la cascada.
+
+	A los callbacks, se les puede añadir una capa más de deslocaliczación. Esta capa es conida como escuchadores. Mientras que los callbacks se incluyen dentro de la Entidad, los escuchadores permiter ejecutar código sobre los eventos del ciclo de vida en una clase externa. Para definir los listeners se utilizan las mismas anotaciones pero con algunas reglas más:
+
+		- Deben contenerse en uan clase con un contructor sin argumentos
+		- Deben recibir como parámetro el objeto sobre el que se desea realizar el escuchado.
+		- Si una entidad no quiere heredar los escuchadores asignados al padre, puede utilizar la anotación: @ExcludeSuperclassListeners
+
+	Para que un Listener pueda ser ejecutado, debe relacionarse con la entidad que escucha. Para eso, se utliza la anotación
+
+		@EntityListeners({}) -> Recibe una lista de class que conteinen las definiciones de los escuchadores
+
+	Es posible definir Escuchadores por defecto para todas las Entidades. Estos se establecene en el fichero persistence.xml:
+
+		<?xml version="1.0" encoding="UTF-8"?>
+		<entity-mappings xmlns="http://xmlns.jcp.org/xml/ns/persistence/orm"
+			xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+			xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/persistence/orm http://xmlns.jcp.org/xml/ns/persistence/orm_2_1.xsd"
+			version="2.1"
+		>
+			<persistence-unit-metadata> <!-- Datos sin equivalente en anotación -->
+				<persistence-unit-defaults> <!-- Valores por defecto -->
+					<entity-listeners> <!-- Escuchadores de entidad por deecto -->
+						<entity-listener class="mi.package.MyListener"/>
+					</entity-listeners>
+				</persistence-unit-defaults>
+			</persistence-unit-metadata>
+		</entity-mappings>
+
+	Estos escuchadores por defecto se ejecutan en el orden establecido en el fichero persistence.xml y antes que los escuchadores definidos por código. Si el desarrollador quiere que en una clase no se ejecute el listener por defecto debe añadir la anotación @ExcludeDefaultListeners.
+
+	El orden final de las funciones de evento es:
+
+		1 - Escuchadores por defeto.
+		2 - Escuchadores asignados a las clases padres.
+		3 - Escuchadores asignados a las implementaciones.
+		4 - Callbacks asociados a las clases padres.
+		5 - Callbacks asociados a la implementaciones.
+

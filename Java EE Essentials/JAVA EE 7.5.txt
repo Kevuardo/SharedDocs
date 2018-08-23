@@ -1,0 +1,620 @@
+[JAVA EE 7] Capítulo 7-8: Enterprise Java Beans (EJBs)
+------------------------------------------------------
+
+Son utilizados para desarrollar la capa de negocio de la aplicación. Son POJOs Anotados con parte de su funcionalidad delegada en el servidor de aplicaciones. Existen varios tipos dependendiendo de su pervivivencia en sesión:
+	
+	Stateless: No contiene un estado conversacional entre métodos. Se utiliza para instancias que se utilizan una sola vez por cada llamada de método. Se rije por la anotación: @Stateless con la siguiente implementación:
+
+		@Target({TYPE}) @Retention(RUNTIME)
+		public @interface Stateless {
+			String name() default "";
+			String mappedName() default "";
+			String description() default "";
+		}
+
+		name -> Nombre del Bean, por defecto es el nombre de la clase.
+		mappedName -> Hace referencia al nombre JNDI asignado en el vendor. No tiene nada que ver con el nombre JNDI portable.
+		description -> Describe el EJB.
+
+	Stateful: El bean contiene estado conversacional que se puede mantener entre métodos para un mismo usuario durante una sesión de usuario. Se rije por varias anotaciones:
+
+		@Stateful -> Contiene los mismos atributos que Stateless
+
+		@StatefulTimeout: -> Permite el tiempo de vida de un EJB en estado "idle" (Sin que se hagan operaciones sobre él), antes de que el contenedor decida borrar el objeto.
+
+		@Remove -> Borra de memoria el EJB después de la invocación de un función que use esta anotación.
+	
+	Singleton: Un Bean de sesión se mantiene entre clientes y soporta acceso concurrente. El contenedor se asegura de que solo existe una instancia por aplicación y gestiona los accesos al objeto. Se rige por las anotaciones:
+
+		@Singleton -> Contiene los mismos atributos que los tros dos.
+
+		@Startup -> Instancia e inicializa el objeto singleton al arrancar el servidor.
+
+		@DependsOn -> Permite encadenar instancias de objetos Singelton. Para aquloso objetos que dependen de que otro esté inicializado. Se pasa una lista de cadenas que representa las dependencias, en orden, del EJB singleton que contiene la anotación @DependesOn.
+
+		@ConcurrencyManagement -> Permite gestionar la concurrencia al objeto singleton. Existen dos tipos de gestión:
+
+			- Container-managed concurrency (CMC) -> El Contenedor se encarga del control de la concurrencia. Es el valor por defecto.
+			- Bean-managed concurrency (BMC) -> El contenedor delega la gestión de la concurrencia en el bean (Por tanto en el programador). La anotación toma el valor de ConcurrencyManagementType.BEAN;
+
+		@Lock -> Esta anotación se utliza cuando @ConcurrencyManagement toma el valor de CMC. Indica al contenedor cómo debe realizar la gestión de concurrencia. Puede aparecer en la clase dando valor a todos los métodos o en el método sobreeecribiendo el valor de la clase. Puede tomar dos valores:
+
+			- @Lock(LockType.WRITE): El método que tenga asociado este tipo, permite la entrada de una única ejecución cada vez.
+
+			- @Lock(LockType.READ): El método que tenga asociado este tipo, permite la entrada de varias ejecuciones simultáneas.
+
+		@AccessTimeout -> Indica el tiempo máximo que una petición debe permanecer bloqueada por la ejecución de un método con bloqueo de tipo WRITE. Si su valor es -1, indica que el tiempo es ilimitado.
+
+A partir de EJB 3.1 se estandarizan los servidores embebidos que permiten a los desarrolladores trabajar en local desde el mismo editor sin necesidad de ejecutar la aplciación en un servidor con la siguiente funcionalidad:
+	
+	Comuncación remota con cliente -> Un cliente EJB puede invocar métodos de forma remota a través de protocolos estándar.
+	
+	Inyección de dependencias -> El contenedor puede injectar recursos en un EJB The container can inject several resources into an EJB (JMS destinations and factories, datasources, other EJBs, environment variables, etc.) así como cualquier otro POJO gracias CDI.
+	
+	Gestión del estado -> Para beans de sesión con estado el contenedor puede gestionar ese estado de forma trasparente.
+	
+	Gestión agrupada -> Para Beans sin estado, y MDBs, el contenedor crea un pool de instancias que puede ser compartido por múltiples clientes. Permitiendo la reutilización de Beans.
+
+	Gestión del ciclo de vida -> El contenedor gestiona el ciclo de vida de los componentes.
+
+	Mensajes -> El contenedor habilita los MDBs para escuchar y enviar mensajes de una forma sencilla.
+
+	Gestión de Trasnacciones -> En los EJBs se puede declarar el tipo de transaccion a gestioanr por el conetendor delegando en este las acciones de commit o rollback.
+	
+	Seguridad -> El uso de clases o métodos pueden ser restringidos por un sistema de autorizaciones y roles.
+	
+	Soporte de concurrencia -> Excepto para los objetos singleton, que sí necesitan una declaración de concurrencia, el resto de tipo sde EJB son seguros a la concurrencia por naturaleza. Permitiendo el desarrollo de grandes aplicaciones sin la preocupación de los desorrollos concurrentes.
+	
+	Interceptores -> Ciertos fragmentos de lógica transversales pueden ser invocados automáticamente por el contenedor.
+	
+	Invoación de métodos asíncrona -> A partir de la versión 3.1 este aspecto también es gestionado por los conetendores de aplicaciones.
+
+A cambio de las ventajas que ofrece los beqns gestionados se aplican una serie de restricciones: 
+	
+		- No puede crear ni gestionar Threads.
+		- No pueden acceder a los método o clases de la paquetería java.io.
+		- No puede crear SeverSocket.
+		- No pueden usar las librerías nativas. (Desarrolladas en C)
+		- No pueden utilizar AWT ni Swing.
+
+EJB Lite -> Es la implementación básica necesaria para que una aplicación JEE funcione en un contenedor. A continuación se incluye una tabla que puestra cuales de las funcionalidades de los cntenedores son Lite o de la versión completa:
+
+	Feature 										EJB Lite 	Full EJB 3.2
+	Session beans (stateless, stateful, singleton)	Yes 		Yes
+	No-interface view 								Yes 		Yes
+	Local interface 								Yes 		Yes
+	Interceptors 									Yes 		Yes
+	Transaction support 							Yes 		Yes
+	Security 										Yes 		Yes
+	Embeddable API 									Yes 		Yes
+	Asynchronous calls 								No 			Yes
+	MDBs 											No 			Yes
+	Remote interface 								No 			Yes
+	JAX-WS web services 							No 			Yes
+	JAX-RS web services 							No 			Yes
+	Timer service 									No 			Yes
+	RMI/IIOP interoperability 						No 			Yes
+
+Los EJBs deben tienen dos piezas fundamentales:
+
+	- Las clases Bean de negocio -> Son Bean de java que contiene la implementación de los métodos de negocio. Debe seguir las siguientes reglas:
+
+		+ La clase debe estar anotada con @Stateless, @Stateful, @Singleton, o el equivalente en el descriptor XML.
+		+ Debe implementar los métodos de las interfaces en caso de que contenga alguna.
+		+ La clase debe ser public, y no pueden ser final o abstract.
+		+ Debe tener un constructor público sin argumentos.
+		+ No debe sobreescribir el método finalize()
+		+ Los nombres de los métodos no puedne comenzar por ejb
+		+ Los métodos no pueden ser ni final ni static
+		+ Los argumetnos y valores de retorno de los métodos rémotos deben contener valores RMI válidos.
+
+	- Las interfaces de negocio -> Contienen la declaración de los métodos de negocio. Son visibles al cliente y se implementan con las clases Bean de Negocio. 
+
+		Las interfaces pueden ser de dos tipos:
+
+			Externas -> Para aquellos métodos que deban ser llamados fuera del contenedor de aplicaciones. Las Interfaces Externas deben incluir alguna anotación de aplicación externa:
+				- @Remote. Serán serializadas como parte del protocolo RMI. 
+				- @WebServices. Para definir servicios SOAP.
+				- @Path. Para definir servicios REST.
+
+			Si se usa agluna de estas anotaciónes, no se puede utilizar @Local.
+			
+			Internas -> Para fragmentos del código que llaman dentro del contenedor de aplicaciones. Estas interfaces deben incluir la anotación @Local. Habilitando la inyección de valores. Si se usa esta anotación, no se puede utiliza @Remote.
+
+			Sin interfaz -> Para fragmentos del código que se llaman dentro del contenedor de aplicaciones que no definen ningún comportamiento. Se puede forzar el que un Bean se visible sin comportamiento en el local mediante la aplciación @LocalBean
+
+		Este tipo de interfaces pueden utilizarse de dos maneras diferentes:
+
+			Incluyendo la anotación en la propia interfaz:
+
+				@Local
+				public interface ItemLocal {
+					List<Book> findBooks();
+					List<CD> findCDs();
+				}
+				@Remote
+					public interface ItemRemote {
+					List<Book> findBooks();
+					List<CD> findCDs();
+					Book createBook(Book book);
+					CD createCD(CD cd);
+				}
+				@Stateless
+					public class ItemEJB implements ItemLocal, ItemRemote {
+					// ...
+				}
+
+			Incluyendo la anotación en la clase de implementación añadiendo la clase de la interfaz a la anotación
+
+				public interface ItemLocal {
+					List<Book> findBooks();
+					List<CD> findCDs();
+				}
+				public interface ItemRemote {
+					List<Book> findBooks();
+					List<CD> findCDs();
+					Book createBook(Book book);
+					CD createCD(CD cd);
+				}
+
+				@Stateless
+				@Remote(ItemRemote.class)
+				@Local(ItemLocal.class)
+				@LocalBean
+				public class ItemEJB implements ItemLocal, ItemRemote {
+					// ...
+				}
+
+	Los EJBS pueden definir un nombre JNDI portable que les de acceso al valor por clientes y otros elemetnos externos a la aplicación. Se forma de la sigueinte forma:
+
+		java:<scope>[/<app-name>]/<module-name>/<bean-name>[!<fully-qualified-interface-name>]
+
+		Los significados son:
+			
+			<scope> Define una serie de espaciones de nombres que hacen referencia al espacio de existencia:
+				• global: Permite que un componente sea ejecutado fuera de la aplicación Java EE
+				• app: Permite que un componente sea ejecutado dentro de la aplicación Java EE accediendo a espacio de nombres de aplicación.
+				• module: The java:module prefix allows a component executing within a Java EE accediendo a un espacio de nombres de módulo.
+				• comp: Es un prefijo privado e impide que sea accedido por otros componentes.
+			
+			<app-name> Se requiere si el Bean de seión se ha gardado dentro de un ear o un war. En esos casos el valor será el nombre del war o el ear sin la extensión
+
+			<module-name> Es el nombre del mdóulo que contiene el bean ya sea dentro o fuera de un war. Se deberá icnluir el nombre del jar sin la extensión.
+			
+			<bean-name> Es el nombre del bean.
+			
+			<fully-qualified-interface-name> Se trata del nombre completo de la clase interfaz que ha sido implementada. Si no existen interfaces, el nombre puede ser el del propio bean de implementación.
+
+Inyección de dependencias en los EJB -> Este tipo de objeto gestionado también puede ser inyectado. 
+
+	Existen varios tipos diferentes de recursos a inyectar:
+
+		- @EJB: Inyecta una referenia de un EJB en una variable.
+		
+		- @PersistenceContext, @PersistenceUnit: Expresa una dependencia con un EntityManager o un EntityManagerFactory, espectivamente (JAVA EE 7.4).
+		
+		- @WebServiceRef: Inyecta una referencai a un webService.
+
+		- @Resource: Inyecta varios tipos de recursos diferetnes como Datos sobre recursos JDBC, Contextos de sesión, Trasacciones de usuario, Factorías y destinatarios de conexiones JMS, entradas de entorno, Un servicio de Time Stamps etc..
+
+		- @Inject: Inyecta cualquier cosa con el mecanismo explicado en JAVA EE 7.2.
+
+	Los objetos EJB inyectados pueden tener una instancia de SessionContext que de acceso a los servicios de gestión del contenedor que los inyectó.
+
+		Esta puede ser inyectada en la clase mediante el atributo @Resource
+
+			@Resource
+			private SessionContext context;
+
+		Contiene los siguientes métodos:
+
+			getCallerPrincipal -> Obtiene el java.security.Principal asociado a la invocación.
+			getRollbackOnly -> Determina is la transacción actual está marcada como rollback o no.
+			getTimerService -> DEvuelve la instancia de javax.ejb.TimerService. Solo disponible en los bean stateless y singletons. 
+			getUserTransaction -> Devuelve la interfaz javax.transaction.UserTransaction que demarca las trasnacciones. Solo los bean de sesion con trasnacciones gestionadas (BMT) tienen acceso a este método.
+			isCallerInRole-> Averigua si la persona que llamó al método tiene un determinado rol.
+			lookup -> Enables the session bean to look up its environment entries in the JNDI naming context.
+			setRollbackOnly -> Allows the bean to mark the current transaction for rollback.
+			wasCancelCalled -> Determina si una llamada asíncrona con objeto de Future, en cliente invocó o no el método cancel.
+
+		Es posible realizar llamadas asíncronas dentro de un objeto EJB.
+
+			- Se utiliza la anotación @Asynchronous para definir que un método tendrá una ejecución asíncrona.
+			- Antes de EJB 3.1 solo se podría utilizar en objetos de tipo JMS and MDBs.
+			- A partir de EJB 3.1 se puede utilizar también en los EJB.
+			- Los métodos pueden devolver void o una promesa de tipo java.util.concurrent.Future<V> donde V es el tipo de objeto que devovlerá en el futuro la llamada asícrona. Este ojeto contiene los sigeintes métodos:
+
+				+ get() -> Devuelve el objeto deseado de la promesa. Minetras el objeto no existe, el hilo de ejecución que invoca get() se espera.
+				+ cancel(boolean mayInterruptIfRunning) -> Permite cancelar la petición que generó el objeto Future. Si el valor pasado a la función es true, la operación solo se puede cancelar si la función que pierde el control no empezó a ejecutarse, si es false, forzará la finalización.
+				+ isDone() -> Devuelve true si el objeto que se espera del Future ya tiene valor.
+
+El descriptor de configuración de los ejb se llama ejb-jar.xml. Es útil para aquella configuración que cambia entre entornos. Se hubica en el directorio WEB-INF dentro de los war o META-INF dentro de los jar.
+
+	Ejemplo:
+
+		<ejb-jar 
+			xmlns="http://xmlns.jcp.org/xml/ns/javaee"
+			xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+			xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee http://xmlns.jcp.org/xml/ns/javaee/ejb-jar_3_2.xsd"
+			version="3.2"
+		>
+			<enterprise-beans>
+				<session>
+					<ejb-name>ItemEJB</ejb-name>
+					<remote>org.agoncal.book.javaee7.chapter07.ItemRemote</remote>
+					<local>org.agoncal.book.javaee7.chapter07.ItemLocal</local>
+					<local-bean/>
+					<ejb-class>org.agoncal.book.javaee7.chapter07.ItemEJB</ejb-class>
+					<session-type>Stateless</session-type>
+					<transaction-type>Container</transaction-type>
+				</session>
+			</enterprise-beans>
+		</ejb-jar>
+
+	En este fichero, además se pueden definir valores que funcionen como propiedades y que serán inyectados en la variable cuando el objeto sea instanciado mediante la anotación @Resource que recibirá como parámetro el nombre de la variavle en el fichero ejb.
+
+		<ejb-jar 
+			xmlns="http://xmlns.jcp.org/xml/ns/javaee"
+			xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+			xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee http://xmlns.jcp.org/xml/ns/javaee/ejb-jar_3_2.xsd"
+			version="3.2"
+		>
+			<enterprise-beans>
+				<session>
+					<ejb-name>ItemEJB</ejb-name>
+					<env-entry>
+						<env-entry-name>currencyEntry</env-entry-name>
+						<env-entry-type>java.lang.String</env-entry-type>
+						<env-entry-value>Euros</env-entry-value>
+					</env-entry>
+					<env-entry>
+						<env-entry-name>changeRateEntry</env-entry-name>
+						<env-entry-type>java.lang.Float</env-entry-type>
+						<env-entry-value>0.80</env-entry-value>
+					</env-entry>
+				</session>
+			</enterprise-beans>
+		</ejb-jar>
+
+		@Stateless
+		public class ItemEJB {
+
+			@Resource(name = "currencyEntry")
+			private String currency;
+
+			@Resource(name = "changeRateEntry")
+			private Float changeRate;
+
+			public Item convertPrice(Item item) {
+				item.setPrice(item.getPrice() * changeRate);
+				item.setCurrency(currency);
+				return item;
+			}
+		}
+
+El empaquetado -> Según como se empaquete un EJB puede tener unas funcionalidades u otras disponibles.
+	
+	- Dentro de un war. Si un ejb se compila dentro de un war, el fichero de descripción xml deberá incluirse en la carpeta WEB-INF del war. Esta opción solo habilita EJB Lite
+
+	- Dentro de un jar. Si un ejb se compila en un jar, el fichero de descripción xml deberá incluirse en la carpeta MET-INF del jar. Esta opción habilita EJB completo
+
+La ejecución -> Los EJB se ejecutan dentro de un contenedor de EJB encargado de gestionar toda la información cintextualizada de este tipo de objetos. Esrtos contenedores, se incluyen en los servidores de aplicaciones, pero cuando no se dispone del servidor, se necesita instancair un contenedor para gestionar los EJB.
+
+	public class Main {
+		public static void main(String[] args) throws NamingException {
+
+			// Sets the container classpath
+			Map<String, Object> properties = new HashMap<>();
+			properties.put(EJBContainer.MODULES, new File("target/classes"));
+
+			// Creates an Embedded Container and get the JNDI context
+			try (EJBContainer ec = EJBContainer.createEJBContainer(properties)) {
+
+				Context ctx = ec.getContext();
+
+				// Creates an instance of book
+				Book book = new Book();
+				book.setTitle("The Hitchhiker's Guide to the Galaxy");
+				book.setPrice(12.5F);
+				book.setDescription("Science fiction comedy book");
+				book.setIsbn("1-84173-742-2");
+				book.setNbOfPage(354);
+				book.setIllustrations(false);
+
+				// Looks up the EJB with the no-interface view
+				ItemEJB itemEJB = (ItemEJB) ctx.lookup("java:global/classes/ItemEJB ");
+
+				// Persists the book to the database
+				itemEJB.createBook(book);
+
+				// Retrieves all the books from the database
+				for (Book aBook : itemEJB.findBooks()) {
+					System.out.println(aBook);
+				}
+			}
+		}
+	}
+
+La invocación de los EJB -> Las inatncias de los EJB se pueden obtener de dos formas:
+
+	- Mediante iyección -> La inyección de dependencias se base en anotaciones. Existen dos tipos de anotaciones:
+
+		@EJB -> Anotación específica para inyectar elementos EJB:
+
+			Ejemplo de inyección local simple:
+
+				@Stateless
+				public class ItemEJB {...}
+
+				// Client code injecting a reference to the EJB
+				@EJB ItemEJB itemEJB;
+
+			Ejemplo de inyección de un EJB con varias interfaces:
+
+				@Stateless
+				@Remote(ItemRemote.class)
+				@Local(ItemLocal.class)
+				@LocalBean
+				public class ItemEJB implements ItemLocal, ItemRemote {...}
+
+				// Client code injecting several references to the EJB or interfaces
+				@EJB ItemEJB itemEJB;
+				@EJB ItemLocal itemEJBLocal;
+				@EJB ItemRemote itemEJBRemote;
+
+			Ejemplo de inyección de un EJB en un cliente que está en otra máquina:
+
+				@EJB(lookup = "java:global/classes/ItemEJB") ItemRemote itemEJBRemote;
+
+		@Inject, @Produces -> Inyección mediante CDI, permite obtener las ventajas de la inyección de CDI:
+
+			Ejemplo de inyección CDI con varias interfaces:
+
+				@Stateless
+				@Remote(ItemRemote.class)
+				@Local(ItemLocal.class)
+				@LocalBean
+				public class ItemEJB implements ItemLocal, ItemRemote {...}
+				
+				// Client code injecting several references to the EJB or interfaces with @Inject
+				@Inject ItemEJB itemEJB;
+				@Inject ItemLocal itemEJBLocal;
+				@Inject ItemRemote itemEJBRemote;
+
+			Ejemplo de inyección CDI en un cliente que está en otra máquina. En este caso, es necesari oproducir en el inyectado antes de inyectarlo:
+
+				// Code producing a remote EJB
+				@Produces @EJB(lookup = "java:global/classes/ItemEJB") ItemRemote itemEJBRemote;
+
+				// Client code injecting the produced remote EJB
+				@Inject ItemRemote itemEJBRemote;
+
+	- Mediante el Path JNDI -> Se utiliza si no s epuede usar la inyección de dependencias.
+
+		Context ctx = new InitialContext();
+		ItemRemote itemEJB = (ItemRemote) ctx.lookup("java:global/cdbookstore/ItemEJB!org.agoncal.book.javaee7.ItemRemote");
+
+Ciclo de vida de los Java Beans:
+
+	Dependiendo del tipo de EJB existen varios ciclos de vida diferenciados:
+
+		Stateless y Singleton -> Estos dos tipos comparten el mismo ciclo de vida porque no tienen comunicación con cliente:
+
+			1 -> Cuando se pide la instancia del elemento en el caso de los Stateless o al inicio de la aplicación en el caso de Singleton, entonces, el contenedor crea una nueva instancia de EJB.
+			2 -> Después, se inyectan los elementos requeridos.
+			3 -> Se invocan los métodos @PostContruct
+			4 -> La instancia del Bean procesa la llamada que lo invocó y permanece en estado "ready" para futuras llamadas. Los bean Stateless  permanecene en estado "ready" hasta que el contenedor libera espacio en el pool, los Singletons permanecen en estado "ready" hasta que se elmina el contenedor.
+			5 -> Cuando el contenedor no necesita la instancia nunca más, invoca el método anotado con @PreDestroy y finaliza el ciclo de vida del Bean
+
+		Stateful -> Al tener comunicación con el cliente, el ciclo de vida deberá tener en cuenta esa posibilidad:
+
+			1 -> Un cliente pide un ainstancia de Bean, entonces, el contenedor crea al instancia y la almacena en memoria.
+			2 -> Después, se inyectan los elementos requeridos.
+			3 -> Se invocan los métodos @PostContruct
+			4 -> Tras invocar el método, el objeto permanece en memoria para las siguientes peticiones de cliente.
+			5 -> Si el cliente permanece inactivo un determinado período de tiempo, el contenedor invoca el método @PrePassivate, y vuelva la instancia del Bean al estado Pasivo manteniéndola almacenada. Esto no ocurrirá, si @Stateful(passivationCapable=false)
+			6 -> Si el cliente invoca un Bean en estado Pasivo, el contenedor vuelve el Bean a la memoria e invoca el método @PostActivate. Esto no ocurrirá, si @Stateful(passivationCapable=false)
+			7 -> Si el cliente no invoca la instancia en estado poasivo por un tiempo superior al timeout de sesión, el contenedor la destruye llamando a @PreDestroy. Esto no ocurrirá, si @Stateful(passivationCapable=false)
+			8 -> Si no se acaba el tiempo de sesión, pero el ciente invoca un método anotado con @Remove, se invoca al método @PreDestroy, y finaliza el ciclo de vida del Bean.
+
+	El ciclo de vida, como se ha visto, tiene asociado una serie de anotaciones:
+
+		Las anotaciones son:
+
+			@PostConstruct Parte de las anotaciones comunes 1.2
+			@PreDestroy Parte de las anotaciones comunes 1.2
+			@PrePassivate A partir de EJB 3.2
+			@PostActivate A partir de EJB 3.2
+
+		Estos métodos se rigen por varias normas:
+
+			- Son métodos sin parámetros que devuelven void.
+			- No puede devolver excecpiones controladas, si puede devolver excecpiones de runtime.
+			- El método puede ser public, private, protected, or package-level, pero no puede ser final ni estático.
+			- El método puede contener varias anotaciones, pero solo una de cada tipo puede aparecer en el Bean.
+			- Estos métodos también pueden acceder al Environment Naming Context.
+
+	Ejemplo Singleton:
+	
+		@Singleton
+		public class CacheEJB {
+			private Map<Long, Object> cache = new HashMap<>();
+
+			@PostConstruct
+			private void initCache() {
+				cache.put(1L, "First item in the cache");
+				cache.put(2L, "Second item in the cache");
+			}
+
+			public Object getFromCache(Long id) {
+				if (cache.containsKey(id))
+					return cache.get(id);
+				else
+					return null;
+			}
+		}
+
+	Ejemplo Stateful:
+
+		@Stateful
+		public class ShoppingCartEJB {
+
+			@Resource(lookup = "java:comp/defaultDataSource")
+			private DataSource ds;
+			
+			private Connection connection;
+			
+			private List<Item> cartItems = new ArrayList<>();
+			
+			@PostConstruct
+			@PostActivate
+			private void init() {
+				connection = ds.getConnection();
+			}
+
+			@PreDestroy
+			@PrePassivate
+			private void close() {
+				connection.close();
+			}
+
+			// ...
+
+			@Remove
+			public void checkout() {
+				cartItems.clear();
+			}
+		}
+
+Servicio de temporización: Este servicio está habilitado para Singletons, Stateless y MDBs pero totalmente desaconsejado para Stateful.
+
+	Se rige por cadenas de expresión del tiempo:
+
+		Esta cadena tiene una serie de atributos: 
+
+			- second -> De 0 a 59. Valor por defecto 0.
+			
+			- minute -> De 0 a 59. Valor por defecto 0.
+			
+			- hour -> De 0 a 23. Valor por defecto 0
+			
+			dayOfMonth -> De [1,31] o {"1st", "2nd", "3rd", . . . , 0th", "31st"} o {"Sun", "Mon", "Tue", o "Wed", "Thu", "Fri", "Sat"} o "Last" (El último día del mes) o -x (x días hasta el último dái del mes). Valor por defecto *
+			
+			-month -> De [1,12] o {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"}
+			
+			-dayOfWeek -> De [0,7] o {"Sun", "Mon", "Tue", "Wed", Thu", "Fri", "Sat"} ("0" y "7" son los dos domingo). Valor por defecto *.
+			
+			-year -> Un año del calendario de 4 dígitos. Valor por defecto *
+			timezone -> Una cadena especificando el TimeZone.
+
+		Los valores de los atributos, se pueden expresar de diferentes maneras:
+
+			- Atributo sencillo -> Un único valor.
+			
+			- Wildcard -> Representa todos los posibles valores de una tributo
+			
+			- Lista de atributos -> Esposibel pasar dos o más valores separados por coma has two or more values.
+
+			- Rangos -> Dos valores separados por un guión representan un rango de valores.
+
+			- Incrementos -> Se puede establecer un valor inicial que se ejecute después de un incremento de tiempo siempre. Por ejemplo: minute = "*/15" second = "30/10"
+
+	Se pueden crear de dos maneras:
+
+		- De forma declarativa: El contenedor crea un schedule por cada método anotado con @Schedule o @Schedules o su configuración homónmia en el fichero de configuración de los EJB. La segunda de las anotaciones permite crear varias instancias de temproizador sobre un mismo método. La anotación @Schedule tiene un parámetro "persistent" que permite definir si el temporizador será persistido en base de datos o no, esto garantiza que si se tumba la aplicación, el temporizador se mantedrá a la espera de volver a ser levantado. Así mimso, garantiza una ejecución en clusters.  
+
+			@Stateless
+			public class StatisticsEJB {
+				
+				@Schedule(dayOfMonth = "1", hour = "5", minute = "30")
+				public void statisticsItemsSold() {
+					// ...
+				}
+				
+				@Schedules({
+					@Schedule(hour = "2"),
+					@Schedule(hour = "14", dayOfWeek = "Wed")
+				})
+				public void generateReport() {
+				// ...
+				}
+				
+				@Schedule(minute = "*/10", hour = "*", persistent = false)
+				public void refreshCache() {
+				// ...
+				}
+			}
+
+		- De forma progamática: Es necesario obtener la instancia de TimerService, ya se mediante inyección de dependecias o mediante la obtenció del mismo a partir del contexto (SessionContext.getTimerService()). 
+
+			El api de la instancia Timer Service:
+
+				+ createTimer -> Crea un Timer basado en fechas, intervalos o duraciones, pero no basado en calendarios.
+
+				+ createSingleActionTimer -> Crea un timer de acción simple que expira en determinado punto del tiempo o tras un determinado período. El contenedor se encarga de borrar el timer después de la expiración.
+
+				+ createIntervalTimer -> Crea un timer de ejecución periódica que se inicia en un determinado punto del tiempo y se ejecuta de forma periódica en un tiempo.
+
+				+createCalendarTimer -> Crea un timer basado en calendar.
+
+				+ getAllTimers -> Devuelve la lista de timers disponibles.
+
+			Todos estos métodos requieren de la clase ScheduleExpresion para generar Timers:
+
+				new ScheduleExpression().dayOfMonth("Mon").month("Jan");
+
+			Todos estos métodos devuelven una instance de avax.ejb.Timer que tiene una serie de métodos que permiten obtener información del temporizador y uno eprmite finalizar el temporizador.
+
+			Cuando el temporizador finaliza, se invoca el método del Bean EJB anotado con @Timeout.
+
+			Ejemplo: 
+
+				@Stateless
+				public class CustomerEJB {
+
+					@Resource
+					TimerService timerService;
+
+					@PersistenceContext(unitName = "chapter08PU")
+					private EntityManager em;
+
+					public void createCustomer(Customer customer) {
+						em.persist(customer);
+						ScheduleExpression birthDay = new ScheduleExpression().dayOfMonth(customer.getBirthDay()).month(customer.getBirthMonth());
+						timerService.createCalendarTimer(birthDay, new TimerConfig(customer, true));
+					}
+
+					@Timeout
+					public void sendBirthdayEmail(Timer timer) {
+						Customer customer = (Customer) timer.getInfo();
+						// ...
+					}
+				}
+
+Servicio de Autorizaciones: 
+
+	Se pueden crear de dos maneras:
+
+		De forma declarativa, mediante el uso de anotaciones: 
+
+			@PermitAll -> Se puede usar en el Bean o en los métodos. Indica que el método o el bean son accesibles por todo el mundo. (Por todos los roles)
+			
+			@DenyAll -> Se puede usar en el Bean o en los métodos. Indeica que el método o el Bean no es accesible por ningún rol. Puede ser útil cuando se queire denegar ciertas parte de la aplicación a ciertos entornos
+
+			@RolesAllowed -> Se puede usar en el Bean o en los métodos. Inidica la lista de roles permitidos para ejecutar el método o los métodos del bean.
+
+			@DeclareRoles -> Solo permitido en el Bean. Define otros roles a nivel de toda la aplicación. Los roles definidos en una clase entran dentro de la categoría de roles habilitados para ese Bean.
+
+			@RunAs -> Solo permitido en el Bean. Asigna temporalmente un rol al ejecutor.
+
+		De forma programática: La autorización se define a través del objeto SessionContext que define dos métodos relacionados con la autorización:
+
+			isCallerInRole(): Determina si el llamador dispone o no de un determinado rol.
+			
+			getCallerPrincipal(): Obtiene el java.security. Principal que define al usuario que llamó a la función:
+
+				
+
+
+
+

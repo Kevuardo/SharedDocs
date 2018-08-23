@@ -1,0 +1,356 @@
+[JAVA EE 7] Capítulo 3: Bean Validation
+---------------------------------------
+
+	- Constraints -> Son anotaciones o conjunto de anotaciones añadidas a un atributo de un Bean que permiten  añadir limitaciones a la variable. Las constraints se comportan como un CDI Bean, por tanto se puede utilizar funcionalidad de inyección de dependencias
+	
+	Su estructura está formada por:
+
+		- Anotación: 
+			Las anotaciones se forman con meta-anotaciones:
+
+				@Target({METHOD, FIELD, ...}): Especifica cuando será utilizada la anotación. En caso de restricciones de atributo, siempre será mejro utilizar las restricciones en los atributos en vez de los getters.
+				
+				@Retention(RUNTIME): Especifica hasta cuando se mantendrá la anotación. En este caso es obligatorio RUNTIME.
+				
+				@Constraint(validatedBy = NotNullValidator.class): Especifica la clase que encapsula el algoritmo de validación
+				
+				@Documented: Especifica si se debe incluir o no la anotación en el javaDoc
+
+			Además, son necesarios una serie de atributos:
+
+				- message: Permite enviar un mensaje de error específico en caso de que se produzca un error. Los mensajes pueden ser a fuego o se pueden incluir en un bundle. El mensaje en este caaso debería ser de la forma "{nombre.del.paquete.NombreDeLaConstraint.message}". Además, este mensaje, puede ser sobreescrito por la inicialziación de la Contraint. Por último, los mensajes aceptan parámtros, ya sean a fuego, o en un un bundle.
+
+				Ejemplo en un bundle:
+
+					javax.validation.constraints.Size.message = size must be between {min} and {max}
+
+				- groups: Se usan para especificar el orden de las validaciones y agruparlas en diferentes momentos de una plicación. En este atributo se añaden clases con nombre de interfaces que en el momento de la validación son requeridas haciendo que solo las valdiaciones que tienen la interfaz deseada sean ejecutadas y no las otras. Si no se específica ninguna clase se añade javax.validation.groups.Default.
+				- payload: Permite asociar meta-información a la validación
+				- cualquier otro: Es posible añadir cualquier otro atribtuo necesario para als valdiaciones personalziadas
+
+		- Implementación:
+
+			Toda clase de validación debe implementar la interfaz ConstraintValidator<T, S> Siendo T la validación sobre la que aplica y S el tipo de objeto sobre el que aplica. Por tanto, se puede tener una misma anotación para distintos tipos S.
+
+			La interfaz contiene dos métodos:
+
+			public void initialize(T parameters) -> Permite inicializar los parámetros de la valdiación en caso de que se requiera realizar alguna acción en tiempo de ejecución.
+
+			public boolean isValid(S object, ConstraintValidatorContext context) -> Es el método que valdia el bean cada vez que se requiera.
+
+			El objeto context permite una serie de métodos propios del objeto:
+
+				disableDefaultConstraintViolation -> Deshabilita el mensaje de error por defecto.
+				getDefaultConstraintMessageTemplate -> Devuelve el mensaje de error actual.
+				buildConstraintViolationWithTemplate -> Devuelve ConstraintViolationBuilder que permite generar mensajes de error personalizados.
+
+				Ejemplo: 
+
+				public class URLValidator implements ConstraintValidator<URL, String> {
+					private String protocol;
+					private String host;
+					private int port;
+					public void initialize(URL url) {
+						this.protocol = url.protocol();
+						this.host = url.host();
+						this.port = url.port();
+					}
+					public boolean isValid(String value, ConstraintValidatorContext context) {
+						if (value == null || value.length() == 0) {
+							return true;
+						}
+						java.net.URL url;
+						try {
+							url = new java.net.URL(value);
+						} catch (MalformedURLException e) {
+							return false;
+						}
+						if (protocol != null && protocol.length() > 0 && !url.getProtocol().equals(protocol)) {
+							context.disableDefaultConstraintViolation();
+							context.buildConstraintViolationWithTemplate("Invalid protocol").
+								addConstraintViolation();
+							return false;
+						}
+						if (host != null && host.length() > 0 && !url.getHost().startsWith(host)) {
+							context.disableDefaultConstraintViolation();
+							context.buildConstraintViolationWithTemplate("Invalid host").
+								addConstraintViolation();
+							return false;
+						}
+						if (port != -1 && url.getPort() != port) {
+							context.disableDefaultConstraintViolation();
+							context.buildConstraintViolationWithTemplate("Invalid port").
+								addConstraintViolation();
+							return false;
+						}
+						return true;
+					}
+				}
+
+	Existen una serie de constraints predefinidas en: javax.validation.constraints
+
+		Constraint 		Accepted Types 				Description
+		
+		AssertFalse 	Boolean, boolean 			The annotated element must be either false or true
+		AssertTrue 
+		
+		DecimalMax		Números y CharSequence		The element must be greater or lower than the specified value
+		DecimalMin				
+		
+		future			Calendar, Date				The annotated element must be a date in the future or in the past
+		Past
+
+		Max 			Números						The element must be greater or lower than the specified value
+		Min
+		
+		Null 			Object  					The annotated element must be null or not
+		NotNull
+		 
+		Pattern 		CharSequence 				The element must match the specified regular expression
+		
+		Digits 			Números						The annotated element must be a number within accepted range
+		
+		Size 			Object[], CharSequence,		The element size
+						Collection<?>, Map<?, ?>
+
+	Es posible crear Constraints personalizadas con los siguientes métodos:
+
+		- Composición: Consiste en añadir funcionalidad mediante generción de atributos a otras anotaciones definidas que tengan entre sus objetos de ejecución el ElementType.ANNOTATION_TYPE.
+
+		La anotación: @ReportAsSingleViolation añadida a una constraint compuesta permite que la validación compuesta no continue una vez falle la primera validación y se muestre el mensaje de error compuesto y no el individual.
+
+		Ejemplo:
+
+			@NotNull
+			@Size(min = 7)
+			@Pattern(regexp = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*"
+				+ "@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?")
+			@Constraint(validatedBy = {})
+			@Target({METHOD, FIELD, ANNOTATION_TYPE, CONSTRUCTOR, PARAMETER})
+			@Retention(RetentionPolicy.RUNTIME)
+			public @interface Email {
+				String message() default "Email address doesn't look good";
+				Class<?>[] groups() default {};
+				Class<? extends Payload>[] payload() default {};
+			}
+
+		- Generación: Consiste en implementar la clase de validación y añadir, si es necesarios, atributos extendidos de validación. Puede ser combinado con el anterior.
+
+		Ejemplo:
+
+			@Constraint(validatedBy = {URLValidator.class})
+			@Target({METHOD, FIELD, ANNOTATION_TYPE, CONSTRUCTOR, PARAMETER})
+			@Retention(RUNTIME)
+			public @interface URL {
+				String message() default "Malformed URL";
+				Class<?>[] groups() default {};
+				Class<? extends Payload>[] payload() default {};
+				String protocol() default "";
+				String host() default "";
+				int port() default -1;
+			}
+
+			public class URLValidator implements ConstraintValidator<URL, String> {
+				private String protocol;
+				private String host;
+				private int port;
+			
+				// Se ejeucta al instanciar la validación pasando como parámetro la anotación con los valores 
+				// incluidos en el lugar donde se usa.
+				public void initialize(URL url) {
+					this.protocol = url.protocol();
+					this.host = url.host();
+					this.port = url.port();
+				}
+
+				public boolean isValid(String value, ConstraintValidatorContext context) {
+					if (value == null || value.length() == 0) {
+						return true;
+					}
+
+					java.net.URL url;
+					try {
+						// Transforms it to a java.net.URL to see if it has a valid format
+						url = new java.net.URL(value);
+					} catch (MalformedURLException e) {
+						return false;
+					}
+
+					// Checks if the protocol attribute has a valid value
+					if (protocol != null && protocol.length() > 0 && !url.getProtocol().equals(protocol)) {
+						return false;
+					}
+
+					if (host != null && host.length() > 0 && !url.getHost().startsWith(host)) {
+						return false;
+					}
+
+					if (port != -1 && url.getPort() != port) {
+						return false;
+					}
+
+					return true;
+				}
+			}
+
+		- Múltiple del mismo tipo: Se pueden añadir validaciones seguidas del mismo tipo,. Para eso, es necesario que se defina una constraint del mimso tipo con una anotación List con un atributo value que de tipo array del primero. Cada uno de los elementos de validación de al lista serán tratados uno detrás de otro como un AND, de tal forma que la validación será válida, si supera todas las valdiaciones del mismo tipo. Se recomeinda que el nombre de la anotación que contiene el array de elemtnos sea List. Además, ese List, debe contener el mismo Target y la retention RUNTIME
+
+		Ejemplo:
+
+			@Target({METHOD, FIELD, ANNOTATION_TYPE, CONSTRUCTOR, PARAMETER})
+			@Retention(RUNTIME)
+			@Constraint(validatedBy = PatternValidator.class)
+			public @interface Pattern {
+				String regexp();
+				String message() default "{javax.validation.constraints.Pattern.message}";
+				Class<?>[] groups() default {};
+				Class<? extends Payload>[] payload() default {};
+
+				// Defines several @Pattern annotations on the same element
+				@Target({METHOD, FIELD, ANNOTATION_TYPE, CONSTRUCTOR, PARAMETER})
+				@Retention(RUNTIME)
+				@interface List {
+					Pattern[] value();
+				}
+			}
+		
+		- Constraints de clase: Permiten la creación de una constraint que valide los atributos de las instancias de una clase. La implementación es la misma salvo que la retención debe ser de clase. El objeto de tipo T que se pasa en el método implementado isValid(T, S) es la instancia de la clase que se quiere validar.
+
+		- Constraints de método: Se aplican sobre cualquier método o constructor excepto getters y setters. Ya sea sobre los parámetros del método o sobre le método en si mismo. Los primeros garantizan que las entradas al método son correctas y lso segundos, que las salidas son correctas.
+
+		- Herencia de Constraints: Cuando una clase hereda de otra en java con validaciones, en la instancia del hijo, se ejecutan también las validaciones del padre. Las anotaciones de atributo de método, solo se puede poner en el padre.
+
+	Las definiciones de las constraints también pueden llevarse a cabo mediante xml bajo el directorio META-INF. El ficheor xml por excelencia es validation.xml. Este ppuede definir un fichero de constraints.
+
+	Ejemplo: 
+
+		<?xml version="1.0" encoding="UTF-8"?>
+		<validation-config
+			xmlns="http://jboss.org/xml/ns/javax/validation/configuration"
+			xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+			xsi:schemaLocation="http://jboss.org/xml/ns/javax/validation/configuration 
+			validation-configuration-1.1.xsd"
+			version="1.1"
+		>
+			<constraint-mapping>META-INF/constraints.xml</constraint-mapping>
+		</validation-config>
+
+	El fichero constraints.xml permite definir constraints.
+
+	Ejemplo:
+
+	<?xml version="1.0" encoding="UTF-8"?>
+	<constraint-mappings
+		xmlns="http://jboss.org/xml/ns/javax/validation/mapping"
+		xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+		xsi:schemaLocation="http://jboss.org/xml/ns/javax/validation/mapping 
+		validation-mapping-1.1.xsd"
+		version="1.1"
+	>
+		<bean class="org.agoncal.book.javaee7.chapter03.Book" ignore-annotations="false">
+			<field name="title">
+				<constraint annotation="javax.validation.constraints.NotNull">
+					<message>Title should not be null</message>
+				</constraint>
+			</field>
+			<field name="price">
+				<constraint annotation="javax.validation.constraints.NotNull"/>
+				<constraint annotation="javax.validation.constraints.Min">
+					<element name="value">2</element>
+				</constraint>
+			</field>
+			<field name="description">
+				<constraint annotation="javax.validation.constraints.Size">
+					<element name="max">2000</element>
+				</constraint>
+			</field>
+		</bean>
+	</constraint-mappings>
+
+	Validación de constraints: Para que las valdiaciones se ejecuten, además de encontrarse dentro de un servidor de plicaciones, es necesario utilizar el api de validaciones.
+
+		- javax.validation.Validator. Es el principal punto de entrada de las validaciones. Es el encargado de validar las contraints en las diferentes capas de la plicación. Todos lo métodos ejecutan la sigueinte rutina:
+		 	1 - Se determina la Validación de constraint.
+		 	2 - Ejecuta el método isValid
+		 	3 - Si devuelve true se ejecuta la sigueinte constraint.
+		 	4 - Si devuelve false se añade una ConstraintViolation al lista de errores.
+
+		El api tiene una serie de métodos. Todos contienen un varargs groups que permite incluir las clases de agrupación de las constraints. Los métodos son:
+
+			+ <T> Set<ConstraintViolation<T>> validate (T object, Class<?>... groups) -> Validates all 
+			constraints on an object.
+
+			+ <T> Set<ConstraintViolation<T>> validateProperty(T object, String propName, Class<?>... groups) -> Validates all constraints placed on a property
+
+			+ <T> Set<ConstraintViolation<T>> validateValue -> (Class<T> beanType, String propName, Object value, Class<?>... groups) -> Validates all constraints placed on a property for a given value
+			
+			+ BeanDescriptor getConstraintsForClass(Class<?> clazz) -> Returns the descriptor object describing bean constraints.
+
+			+ ExecutableValidator forExecutables() Returns a delegate for validating parameters and return values on methods & constructors. La clase Executable Validator contine los siguientes métodos:
+
+				- <T> Set<ConstraintViolation<T>> validateParameters (T object, Method method, Object[] params, Class<?>... groups) -> Validates all constraints placed on the parameters of a method
+				
+				- <T> Set<ConstraintViolation<T>> validateReturnValue (T object, Method method, Object returnValue, Class<?>... groups) -> Validates all return value constraints of a method
+				
+				- <T> Set<ConstraintViolation<T>> validateConstructorParameters(Constructor<T> constructor, Object[] params, Class<?>... groups) -> Validates all constraints placed on the parameters of a constructor
+				
+				- <T> Set<ConstraintViolation<T>> validateConstructorReturnValue (Constructor<T> constructor, T createdObject, Class<?>... groups) -> Validates all return value constraints of a constructor
+
+		Obtener un validador: Los validadores se pueden obtener de forma programática o mediante inyección de dependencias:
+
+			- Programática
+				
+				ValidatorFactory factory = Validation.buildDefaultValidatorFactory();
+				Validator validator = factory.getValidator();
+
+				// La factoría hay que cerrarla
+				factory.close();
+
+			- Mediante inyección de dependencias: Las instancias se habilitan mediantwe JNDI y del cierre se encarga el servidor de aplicaciones y se desentiende el programador
+
+				ValidatorFactory under java:comp/ValidatorFactory
+				Validator under java:comp/Validator
+
+			Después, se puede hacer un lookUp JNDI: 
+
+				@Resource ValidatorFactory validatorFactory;
+				@Resource Validator validator;
+
+			O si está habilitada la inyección CDI:
+
+				@Inject ValidatorFactory;
+				@Inject Validator;
+
+		Validar Beans: Ejemplo de validación de un Bean entero:
+
+			CD cd = new CD("Kind of Blue", 12.5f);
+			Set<ConstraintViolation<CD>> violations = validator.validate(cd);
+			assertEquals(0, violations.size());
+		
+		Valdiar propiedades: Ejemplo de validación de propiedades:
+
+			CD cd = new CD();
+			cd.setNumberOfCDs(7);
+			Set<ConstraintViolation<CD>> violations = validator.validateProperty(cd, "numberOfCDs");
+			assertEquals(1, violations.size());
+			assertEquals("must be less than or equal to 5", violations.iterator().next().getMessage());
+			assertEquals(7, violations.iterator().next().getInvalidValue());
+			assertEquals("{javax.validation.constraints.Max.message}",
+			violations.iterator().next().getMessageTemplate());
+
+		Validar valores: Ejemplo de valdiación:
+
+			Set<ConstraintViolation<CD>> constr = validator.validateValue(CD.class, "numberOfCDs", 2);
+			assertEquals(0, constr.size());
+
+		Validar métodos y constructores: Es necesario obtener el objeto ExecuteValidator a través del método forExecuteables(). Este cotniene los métodos de validación para validar métodos. Ejemplo de Uso:
+
+			CD cd = new CD("Kind of Blue", 12.5f);
+			Method method = CD.class.getMethod("calculatePrice", Float.class);
+			ExecutableValidator methodValidator = validator. forExecutables();
+			Set<ConstraintViolation<CD>> violations = methodValidator.validateParameters(cd, method,
+			new Object[]{new Float(1.2)});
+			assertEquals(1, violations.size());
+
+		Validación por grupos: Se tarta de incluir Clases de agrupación en cualquiera de los métodos de validación
+

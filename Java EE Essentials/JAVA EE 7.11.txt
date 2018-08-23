@@ -1,0 +1,407 @@
+[JAVA EE 7] Capítulo 15: RESTful Web Services
+---------------------------------------------
+
+En la arquitectura REST, cada pieza de información es un recurso, y esos recursos se localizan usando URIs (Uniform Resource Identifiers).
+
+
+Las URIs son direcciones estructuradas que indican como encontraar los recursos. Existen varios tipos de URI: WWW addresses, Universal Document Identifiers, Universal Resource Identifiers, Uniform Resource Locators (URLs) y Uniform Resource Names (URNs).
+
+	El formato de la URIs: 
+
+		Estrcutura: http://host:port/path?queryString#fragment.
+
+			protocol -> HTTP.
+			host -> Nombre DNS o una dirección IP
+			port -> El puerto es opcional
+			path -> Un conjunto de fragmentos de texto delimitados por el caracter "/"
+			queryString -> Parametro opcional. Se trata de una lista de parámetros representada por pares de clave valor, cada uno de ellos delimitado con el carácter "&"
+			fragment -> Se utiliza para apuntar a una determinada localización del documento
+
+		Ejemplo: 
+
+			http://www.weather.com:8080/weather/2013/01/01?location=Lisbon,Portugal&time=morning
+
+	Propiedades de las URIs:
+
+
+		- Representación -> Es necesario pensar cómo se van a representar los diferentes recursos de la aplciación y mantener un estándar para todos ellos.
+
+		- Capacidad de dirección -> Es necesario que todos los recursos que se utilicen en la aplicación, tengan una dirección URI establecida.
+
+		- Interconexión -> Se dice que los recursos de un grafo están conectados si cada una de las hojas del grafo tienen una representación en una direccion. Además, se dice que está fuertemente Interconectado si se puede llegar desde cada uno de los elementos del grafo a los otros y viceversa. Siguiendo este prinicpio, se puede decir que los recursos de la aplicación tienen que estar lo más interconectados posible.
+
+		- Deslocalización -> Las peticiones rest no deben saber que ha ocurrido en otras peticiones en la medida de los posible.
+
+
+Los Api RESTful se basan en un sistema de Petición - Respuesta (Request-Response).
+
+	Cabeceras -> Los elementos que intervienen en el api Rest pueden tener una serie de cabeceras asociadas:
+
+		- Accept -> Tipos de contenido aceptados (e.g. text/plain)
+		
+		- Accept-Charset -> Tipos de codificación de carácteres aceptados (e.g. utf-8)
+		
+		- Accept-Encoding -> Tipos de Codificación adeptados (e.g. gzip, deflate)
+		
+		- Accept-Language -> Lenguajes aceptados para las respuestas (e.g. en-US)
+		
+		- Cookie -> Cookie enviada por el servidor
+		
+		- Content-Length -> Tamaño del cuerpo de la petición en bytes
+		
+		- Content-Type -> El tipo MIME del cuerpo de la petición (e.g. text/xml)
+		
+		- Date -> La fecha en la que se envió el mensaje
+		
+		- ETag -> Identificador de una versión específica de un recurso (e.g. 8af7ad3082f20958)
+		
+		- If-Match -> Solo ejecuta la acción si la entidad suministrada por el cliente coincide con la entidad del servidor.
+		
+		- If-Modified-Since -> Permite que se devuelva un código 304 (not Modified) si el contenido no ha cambiado desde una determinada fecha
+		
+		- User-Agent -> La cadena que representa el navegador que utiliza el usuario (e.g. Mozilla/5.0)
+
+
+	Los métodos estandarizados de HTTP. Este protocolo define lso siguiente métodos estandarizados:
+
+		GET -> Petición simple de lectura de un recurso. Debe dejar el recurso tal y como lo encontró.
+		
+		POST -> Creación de un nuevo recurso.
+		
+		PUT, DELETED, Oros métodos -> Deprecados en los nuevos navegadores.
+
+
+	Negociación del contenido (Content Negotiation).
+
+		Definición: Estándar establecido en la sección 12 del protcolo HTTP, se define como: "Proceso de selección de la mejor representación posible de una respuesta dada cuando existen múltiples representaciones disponibles". Eso implica lenguaje, tipo de respuesta, tipo de codificación del contenido, etc.
+
+		Content Types -> HTTTP utiliza Internet Media Types. Los tipos se incluyen en las cabeceras: Content-Type y Accept.
+
+			Tipos principales: Existen 5 tipos principales: text, image, audio, video
+			Subtipos: Los tipòs prinicpales se dividen en subTipos. Los más importantes son:
+
+				- text/plain: Tipo por defecto y se utiliza para mensajes de texto simple.
+				
+				- text/html: Este es muy utilizado en los navegadores, informa al navegador que el tipo de contendio es un págnia HTML.
+				
+				- image/gif, image/jpeg, image/png: Ficheros que se deben abrir con visualizadores de terceros.
+				
+				- text/xml, application/xml: Para ficheros XML.
+				
+				- application/json: JavaScript Object Notation (JSON).
+
+	Códigos de Estado: Todas las respuestas recibidas tienen asociada un estado. Existen alrrededor de 60 códigos. 
+
+		Formato: Todos están formados igual, se trata de un códgio de 3 dígitos siguiendo la siguiente estructura:
+
+			- 1xx: Informational. La petición ha sido recibida y el proceso continúa.
+			- 2xx: Success. La petición ha sido recibida, entendida y adeptada.
+			- 3xx: Redirection. Son necesarias otras acciones antes de completar la petición.
+			- 4xx: Client Error. La petición contiene una sintáxis incorrecta o no ha podido ser procesada.
+			- 5xx: Server Error. El servidor falló con una peticiíon aparentemente correcta.
+
+		Se pueden ver los códigos de estado en la siguiente URL: https://www.iana.org/assignments/http-status-codes/http-status-codes.xhtml
+	
+	Cacheo y peticiones condicionadas: Cuando se envía una respuesta a un GET, es posible añadir una fecha de última modificación. La siguiente vez que el cliente ejecute una petición, puede añadir en la cabecera If-Modified-Since esa fecha, y si ambas coinciden en el servidor, se devuelve un Código 301 que indica al cliente que no se produjeron cambios desde la últiam vez que consultó el recurso. Este sistema necesita que cliente y servidor estén sincronizdos, esto siempre es complicado, por ello, se ofrece otro sistema. En vez de enviar un afecha de modificación, se puede enviar un hash MD5 o SHA1 que representa la información del recurso en la cabecera ETag, enviando un nuevo GET con la cabecera If-None-Match al servidor. En este caso, la respuesta será también 304-Not Modified si el recurso no ha sido modificado.
+
+Fichero WADL -> Es el fichero descriptor de la definición del servicio. Pero, auqnue estaba integrado dentro de W3C, el consorcio no lo ha estandarizado.
+
+Servicio Web Restful y Java EE:
+
+	Implementación: La implementación de referencia de JAX-RS es Jersey bajo las licencias CDDL y GPL.
+	Otras implementaciones conocidas son CXF (Apache), RESTEasy (JBoss), y Restlet (Uno de lso proyectos más antiguos y todavía en uso)
+
+	Arquitectura: Los servicios Rest deben cumplir:
+
+		- La clase debe estar anotada con @javax.ws.rs.Path (Sin descriptor de configuración).
+		- La clase debe se pública, y no ser final o abstract.
+		- la clase que define el Root del api Rest, es decir, la que está anotada con @Path, debe contener un cosntructor por defecto público. Para el resto de clases de definición de recurso, no es necesario.
+		- La clase del servicio no debe definir el método finalize().
+		- Para que el servicio pueda utilizar las capacidades de los objetos EJB, debe estar anotada con @javax.ejb.Stateless o @javax.ejb.Singleton.
+		- La clase no debe guardar su estado a lo largo de las diferentes llamadas a los métodos de la aplicación, por eso, que solo pueda ser Stateless o Singleton.
+
+	Anotaciones:
+
+		@Path("/path/{attr:regularExpresion}") -> Especifica que la ruta de acceso a los métodos del servicio. Si se incluye en la clase, se trata del root, si se incluye en los métodos, se tratará de la ruta de acceso al método, relativa al root. Además, la ruta puede incluir referencia a tributos anotados con @PathParam y ser definidos por una expresión regular
+		
+		@GET -> Determina que se utilice el método como una petición GET.
+		
+		@POST -> Determina que se utilice el método como una petición POST.
+		
+		@DELETE, @PUT, ... -> Determina que se utilice los métodos de un petición del tipo indicado.
+		
+		Consumidores y productores:
+
+			Existen dos anotaciones que determinan el tipo de entrada y salida de los métodos:
+
+				@Produces("mime/type") -> Determina el tipo de salida de las peticiones.
+			
+				@Consumes("mime/type") -> Determina el tipo de entrada de las peticiones.
+
+			Estos métodos tienen un enumerado que permite añadir valores predefinidos (MediaType):
+
+				APPLICATION_ATOM_XML “application/atom+xml”
+				APPLICATION_FORM_URLENCODED “application/x-www-form-urlencoded”
+				APPLICATION_JSON “application/json”
+				APPLICATION_OCTET_STREAM “application/octet-stream”
+				APPLICATION_SVG_XML “application/svg+xml”
+				APPLICATION_XHTML_XML “application/xhtml+xml”
+				APPLICATION_XML “application/xml”
+				MULTIPART_FORM_DATA “multipart/form-data”
+				TEXT_HTML “text/html”
+				TEXT_PLAIN “text/plain”
+				TEXT_XML “text/xml”
+				WILDCARD “*/*”
+
+			El valor de la anotación es una lista de elementos, de esta manera, el cliente podrá elejir, si hay más de un tipo, cual es el tipo de input o output que mejor le conviente con la información introducida en las cabeceras de la petición.
+		
+		@PathParam("nameParam"} -> Anotación que se incluye en los parámetros de los métodos y que permiten generar atributos en el path de una petición. Además, permite añadir expresiones regulares que definan el dato.
+
+		@QueryParam("nameQueryParam") -> Anotación que se incluye en los parámetros de los métodos. Indica que el valor del atriobuto se debe extraer de la query de la URI. Por ejemplo, la URI: http://www.myserver.com/customer?zip=75012&city=Paris, tendría un método relacionado con el Path customer y dos atributos @QueryParam, zip y city.
+
+		@MatrixParam -> Funciona igual que query param, con la salvedad de que la URI de la que se extraen los datos es una matriz en vez de una Query. Ejemplo: http://www.myserver.com/customer;zip=75012;city=Paris
+
+		@CookieParam("nameCookieParam") -> Anotación que se incluye en los parámetros de los métodos. El valor del atributo se extrae de alguna de las cookies que incluye la petición.
+
+		@HeaderParam("nameHeaderParam") -> Anotación que se incluye en los parámetros de los métodos. El valor del atributo se extrae de alguno de los atributos de la cabecera de la petición.
+
+		@FormParam("nameFormParam") -> Anotación que se incluye en los parámetros de los métodos. El valor del atributo se extrae de alguno de los elementos de un formulario incluido en el body de la petición.
+
+		@DefaultValue("defaultValue") -> Se puede añadir en todos los atribtuos de parámetros de método y permite designar un valor por defecto para el atributo.
+
+		@ApplicationPath("root") -> Permite que se registre el path de acceso a la speticiones REST en el proveedor de JavaEE sin necesidad de definirlo en el fichero web.xml. La clase anotada debe extender la clase javax.ws.rs.core.Application.
+
+
+	Tipos de retorno:
+
+		Los métodos pueden devolver varios tipos de datos:
+
+			- Objetos complejos: En formato Json o XML.
+			- Objetos primitivos: Cadenas, números, números con coma flotante ...
+			- Response -> Un objeto de respuesta que contiene cabeceras, tipos de datos, contenido de respuesta, Cookie, etc. Esta es la opción más recomendada para generar respuestas.
+
+				Para generar respuestas su puede utilizar la clase Responss:
+
+					accepted() -> Creates a new ResponseBuilder with an accepted status
+					created() -> Creates a new ResponseBuilder for a created resource (with its URI)
+					noContent() -> Creates a new ResponseBuilder for an empty response
+					notModified() -> Creates a new ResponseBuilder with a not-modified status
+					ok() -> Creates a new ResponseBuilder with an ok status
+					serverError() -> Creates a new ResponseBuilder with an server error status
+					status() -> Creates a new ResponseBuilder with the supplied status
+					temporaryRedirect() -> Creates a new ResponseBuilder for a temporary redirection
+
+				Los métodos de los objetos response son:
+
+					getCookies() -> Gets the cookies from the response message
+					getHeaders() -> Gets the headers from the response message
+					getLinks() -> Get the links attached to the message as header
+					getStatus() -> Get the status code associated with the response
+					readEntity() -> Read the message entity as an instance of specified Java type using a
+					MessageBodyReader that supports mapping the message onto the requested type
+
+				Ejemplos: 
+
+					Response.ok().build();
+					Response.ok().cookie(new NewCookie("SessionID", "5G79GDIFY09")).build();
+					Response.ok("Plain Text").expires(new Date()).build();
+					Response.ok(new Customer ("John", "Smith"), MediaType.APPLICATION_JSON).build();
+					Response.noContent().build();
+					Response.accepted(new Customer("John", "Smith", "jsmith@gmail.com", "1234565")).build();
+					Response.notModified().header("User-Agent", "Mozilla").build();
+
+	Construcción de URIs: Se generan mediante la clase javax.ws.rs.core.UriBuilder
+
+		.fromUri("Url.de.la.aplicación") -> Establece la url base de la URI.
+		.path("path") -> Añade un path a la URI
+		.queryParam("key","value") -> Añade un parámetro a la URI en forma de query
+		.matrixParam("key, value") -> Añade un parámetro a la URI en forma de matriz
+
+	Información de la petición: Es posible inyectar una serie de objetos de la petición dentro de la clase del servicio mediante la anotación @javax.ws.rs.core.Context, tanto en atributos de la clase como en métodos.
+
+		- HttpHeaders -> Permite acceder a las cabeceras de la petición
+		- UriInfo -> Infromación de la URI
+		- Request -> Objeto Petición
+		- SecurityContext -> Información relacionada con la seguridad del apetición
+		- Providers -> Proveedores
+
+	Proveedores de entidades (Entity Providers) -> Son lo sobjetos encargados de transformar los obejtos de Java en represtaciones de cliente y vicebersa. 
+
+		- Proveedores por defecto: JAXB ofrece transformadores de Objetos XML y JSON a objetos Java. 
+
+		- Proveedores customizados: Para implementar un proveedor es necesario implementar dos clases:
+			+ MessageBodyReader -> Genera objetos java a partir de las cadenas en formato customizado.
+			+ MessageBodyWriter -> Genera cadenas en formato customizado.
+
+		- Ejemplos:
+
+			@Provider
+			@Produces("custom/format")
+			public class CustomCustomerWriter implements MessageBodyWriter<Customer> {
+
+				@Override
+				public boolean isWriteable(Class<?> type, Type genericType, Annotation[] annotations, 			MediaType mediaType) {
+					
+					return Customer.class.isAssignableFrom(type);
+				}
+
+				@Override
+				public void writeTo(Customer customer, Class<?> type, Type gType,
+					Annotation[] annotations, MediaType mediaType, MultivaluedMap<String, Object> httpHeaders, OutputStream outputStream) throws IOException, WebApplicationException {
+				
+					outputStream.write(customer.getId().getBytes());
+					outputStream.write('/');
+					outputStream.write(customer.getFirstName().getBytes());
+					outputStream.write('/');
+					outputStream.write(customer.getLastName().getBytes());
+				}
+
+				@Override
+				public long getSize(Customer customer, Class<?> type, Type genericType, 
+					Annotation[] annotations, MediaType mediaType) {
+				
+					return customer.getId().length() + 1 + customer.getFirstName().length() + 1 + 
+					customer.getLastName().length();
+				}
+			}
+
+			@Provider
+			@Consumes("custom/format")
+			public class CustomCustomerReader implements MessageBodyReader<Customer> {
+
+				@Override
+				public boolean isReadable(Class<?> type, Type genericType, Annotation[] annotations, 		MediaType mediaType) {
+					
+					return Customer.class.isAssignableFrom(type);
+				}
+
+				@Override
+				public Customer readFrom(Class<Customer> type, Type gType, Annotation[] annotations, 		MediaType mediaType, MultivaluedMap<String, String> httpHeaders, 
+					InputStream inputStream) throws IOException, WebApplicationException {
+
+					String str = convertStreamToString(inputStream);
+					StringTokenizer s = new StringTokenizer(str, "/");
+					Customer customer = new Customer();
+					customer.setId(s.nextToken());
+					customer.setFirstName(s.nextToken());
+					customer.setLastName(s.nextToken());
+					return customer;
+				}
+			}
+
+			@GET
+			@Produces("custom/format")
+			public Customer getCustomCustomer () {
+				return new Customer("1234", "John", "Smith");
+			}
+
+	Manejar excepciones:
+
+		- La excepciones no controladas -> Se pueden reenviar y Java EE sabe interpretarlas en el contenedor pertinente.
+
+		- Excecpiones controladas -> Este tipo de excepciones debe ser envueltas en una excepción de tipo ServletException, WebServiceException o WebApplicationException. WebApplicationException tiene varias subcategorías: BadRequestException, ForbiddenException, NotAcceptableException, NotAllowedException, NotAuthorizedException, NotFoundException, NotSupportedException. Estas excecpiones, tiene dan como resultado una serie de códigos de error en el navegador. La excepción por defecto para las clases padre es la 500, el resto de subcategorías tienen otros códigos asociados más específicos. Además, la clase WebApplicationException ofrece un cosntructor que permite añadir un código de excepción diferente al 500.
+
+		- Proveedor de excepciones -> Es psoible generar mapeadores de excepciones que transformen las excecpiones personalizadas de tu código en Respuestas de cliente sin necesidad de que sean envueltas en las excecpiones predefinidas. Esto se efectúa mediante una anotación @Porvider y la implentación de la interfaz ExceptionMapper<T>
+
+			@Provider
+			public class EntityNotFoundMapper implements ExceptionMapper<EntityNotFoundException> {
+				public Response toResponse(javax.persistence.EntityNotFoundException ex) {
+					return Response.status(404).entity(ex.getMessage()).type(MediaType.TEXT_PLAIN).build();
+				}
+			}
+
+		- Ejemplo:
+
+			@Path("/customer")
+			public class CustomerRestService {
+
+				@Inject
+				private CustomerEJB customerEJB;
+
+				@Path("{customerId}")
+				public Customer getCustomer(@PathParam("customerId") Long customerId) {
+					
+					if (customerId < 1000){
+						throw new IllegalArgumentException("Id must be greater than 1000!");
+					}
+					
+					Customer customer = customerEJB.find(customerId);
+					if (customer == null){
+						throw new WebApplicationException(Response.Status.NOT_FOUND);
+					}
+					return customer;
+				}
+			}
+
+	Ciclo de vida y eventos:
+
+		- Las instancias de clases que contienen los servicios se generan por petción.
+		- Si se trabaja en un contenedor gestionada de JavaEE, se pueden utilizar las anotaciones: @PostConstruct, @PreDestroy, @RunAs, @RolesAllowed, @PermitAll, @DenyAll, y @DeclareRoles para trabajar con los eventos de los EJB.
+
+	Invocar Restfull:
+
+		- Desde un navegador web: Es tan fácil como incluir la URI en el navegador y presionar Enter.
+		- Desde una aplicación de terceros (Java): En estos casos, es necesario utilizar el API de cliente. 
+
+			javax.ws.rs.client.* -> De este paquete se destacan varias clases:
+
+				- Client -> Es el principal puinto de entrada al api. Se utiliza para ejecutar peticiones de cliente y para consumer las respuestas ofrecidas.
+
+				- ClientBuilder -> Permite generar instancias de Client.
+
+				- Configurable -> Configuración de las clases de cliente Client, WebTarget e Invocation.
+
+				- Entity -> Encapsula entidades de mensaje.
+
+				- Invocation -> Representa una petición preparada y la para ser ejecutada.
+
+				- Invocation.Builder -> Constructor de peticiones.
+
+				- WebTarget -> Representación del objetivo de una petición idnetificado por su URI.
+
+		- Ejemplo: 
+
+			private URI uri = UriBuilder.fromUri("http://localhost/chapter15-service-1.0/rs/book").port(8080).build();
+
+			private static Client client = ClientBuilder.newClient();
+			
+			Response response = client.target(uri).request().post(Entity.entity(null, MediaType.APPLICATION_XML));
+
+			assertEquals(Response.Status.BAD_REQUEST, response.getStatusInfo());
+
+
+	Ejemplo:
+
+		@Path("book")
+		@Stateless
+		public class BookRestService {
+			
+			@Context
+			private UriInfo uriInfo;
+			
+			@PersistenceContext(unitName = "chapter15PU")
+			private EntityManager em;
+			
+			@GET
+			@Produces(MediaType.APPLICATION_XML)
+			public Books getBooks() {
+				TypedQuery<Book> query = em.createNamedQuery(Book.FIND_ALL, Book.class);
+				Books books = new Books(query.getResultList());
+				return books;
+			}
+
+			@POST
+			@Consumes(MediaType.APPLICATION_XML)
+			public Response createBook(Book book) {
+				em.persist(book);
+				URI bookUri = uriInfo.getAbsolutePathBuilder().path(book.getId().toString()).build();
+				return Response.created(bookUri).build();
+			}
+
+			@DELETE
+			@Path("{id}")
+			public Response deleteBook(@PathParam("id") Long bookId) {
+				em.remove(em.find(Book.class, bookId));
+				return Response.noContent().build();
+			}
+		}

@@ -1,0 +1,286 @@
+[JAVA EE 7] Capítulo 14: MServicios SOAP
+----------------------------------------
+
+Simple Object Access Protocol. La comunicación entre clietne y servidor se ejecuta a través de ficheros XML, que permiten la deslocaclización del código entre y cliente y servidor. Para ello se fija un estándar marcado por un fichero llamado WSDL, este fichero describe el comportamiento del servicio al cliente.
+
+Partes del WSDL:
+
+	definitions -> Es ele elemento principal del WSDL, y especifica la declaraciones globales de espacios de nombres que se podrán utilizar en el documento
+
+	types -> DEfine los tipos de datos que serán utilizados en el mensaje
+
+	import -> Permite importar un esquema de definición de datos.
+
+	message -> Define el formato de los datos que serán transmitidos entre el consumidor y el propio servicio web.
+
+	portType -> Especifica las operaciones del Servicio web. Cada operación incluye el nombre de la operación y una referencia a los datos de entrada y salida.
+
+	binding -> Desccribe el protocolo que será utilizado, el formato de las operaciones y los mensajes definidos para un determinado portType.
+
+	service -> Contiene la colección de <port> que son asociados con un endpoint.
+
+	port -> Specifies an address for a binding, thus defining a single communication endpoint. Especifica una dirección para un binding,  ue puede ser una dirección de red o una URL.
+
+SOAP -> Meintras que el WSDL suponte una interfaz de comunicación, SOAP es una implementación para el mensaje que se emite entre cliente y servidor y se conoce como "standard web services application protocol". Los elementos más importantes que componen un mensaje SOAP son:
+
+	Envelope -> Define el mensaje y lso espacios de nombres usados en el documento. Es el elemento ROOT.
+
+	Header -> Contiene atributos opcionales del mensaje o datos específicos sobre la infraestructora tales como la seguridad o infromación del enrutado.
+
+	Body -> Contiene el mensaje que será intercambaido entre cliente y servidor.
+
+	Fault -> Contiene la información sobre posibles errores que ocurren mientras se procesa el mensaje. Este elemento es opcional
+
+UDDI -> Es un registro de servicios Web en internet que permite hacer llamadas a este tipo de servicios sin necesidad de conocer la localización exacta del fichero WSDL. El etándar UDDI no estaba todavía cerrado en el año 2007.
+
+Especificaciones y estándares en Serviciso Web SOAP:
+
+	Specification 			Version Stand. 	body 	JSR 	URL
+
+	JAX-WS 					2.2a 			JCP 	224 	http://jcp.org/en/jsr/detail?id=224
+	Web Services 			1.3 			JCP 	109 	http://jcp.org/en/jsr/detail?id=109
+	Web Services Metadata 	2.1 			JCP 	181 	http://jcp.org/en/jsr/detail?id=181
+	JAXB 					2.2 			JCP 	222 	http://jcp.org/en/jsr/detail?id=222
+	SAAJ 					1.3 			JCP 	67 		http://jcp.org/en/jsr/detail?id=67
+	JAX-RPC 				1.1 			JCP 	101 	http://jcp.org/en/jsr/detail?id=101
+	JAXR 					1.1 			JCP 	93 		http://jcp.org/en/jsr/detail?id=93
+	SOAP 					1.2 			W3C 			http://www.w3.org/TR/soap/
+	XML 					1.1 			W3C 			http://www.w3.org/TR/xml
+	WSDL 					1.1 			W3C 			http://www.w3.org/TR/wsdl
+	UDDI 					1.0 			OASIS 			http://uddi.org/pubs/uddi_v3.htm
+
+
+Escribir servicios SOAP: Debido a que los servicios soap son un contrato entre client y servidor, conretado a través de un documento intermedio (WSDL), es necesario generar tanto el codigo del servicio, como el contrato. 
+
+	Existen dos formas de aproximarse a los servicios SOAP: 
+	
+		Desde el código Java hacia el Documento. (wsgen) -> Para desarrollar aplicaciones servidoras en contenedores Java EE, no es necesario generar el fichero WSDL, ya que con un conjunto de anotaciones propias de Java EE [JAX-WS (JSR 224) y WS-Metadata specifications (JSR 181)], el servidor es capaz de configurar por defecto:
+
+			@javax.jws.WebService -> Permite identificar una clase com servicio. 
+
+				Sigue las siguientes reglas:
+
+					- La clase debe estar anotada con @javax.jws.WebService o mantener la referencai adecuada en el descriptor xml (webservices.xml)
+				
+					- La clase puede implementar cero o más interfaces, todas deben estar anotadas con @WebService.
+
+					- La clase debe ser pública y no puede ser final ni abstract.
+				
+					- La clase debe tener un constructor por defecto
+
+					- La clase no debe definir el método finalize().
+
+					- Para transformar la calse de un servicio SOAP un endpoint EJB, la clase debe estar anotada con @javax.ejb.Stateless or @javax.ejb.Singleton. Porqué si, se puede obtener un servicio EJB y un servicio SOAP al mismo tiempo con la misma definición de clase.
+				
+					- El servicio debe ser un objeto stateless, por lo que no debe guardar el estado específico del cliente através de las diferentes llamadas.
+
+				Su implementación es:
+
+					@Retention(RUNTIME) @Target(TYPE)
+					public @interface WebService {
+						String name() default ""; // Nombre del servicio en el fichero WSDL
+						String targetNamespace() default "";
+						String serviceName() default "";
+						String portName() default "";
+						String wsdlLocation() default "";
+						String endpointInterface() default ""; // Interfaz que da origen a la implementación del servicio
+					}
+
+			@WebNethod -> Si no aparece la anotación, todos los métodos públicos de la clase, serán expuestos en el WSDL. Se pueden destacar dos atributos:
+
+				- exclude -> Con valores false o true, que permite excluir un método.
+				- operationName -> Cambia el nombre de la operación en el WSDL.
+
+			@OneWay -> Determina que se trata de un método sin resultado. Mejora la optimizacion del fichero WSDL.
+
+			@javax.jws.WebParam -> Permite cambiar el com`portamiento por defecto de los parámetros de los métodos.
+
+				Su definición es:
+
+					@Retention(RUNTIME) @Target(PARAMETER)
+					public @interface WebParam {
+
+						String name() default ""; // Nombre del parámetro
+						public enum Mode {IN, OUT, INOUT};
+						String targetNamespace() default ""; // Espacio de nombres objetivo
+						boolean header() default false;
+						String partName() default "";
+					};
+
+				El atributo mode: Permite definir el tipo def lujo del parámetro. Por defecto, es IN. Los otros tipos, OUR y INOUT se pueden utilizar para parámetros de salida múltiple mediante el uso de atributos de tipo javax.xml.ws.Holder.
+
+					Ejemplo: https://tomee.apache.org/examples-trunk/webservice-holder/README.html
+			
+			@javax.jws.WebResult -> Permite cambiar el nombre del resultado de un método en el WSDL. Además de otros elementos tales como los de la anotación @WebParam
+
+				Ejemplo:
+
+				@WebService
+				public class CardValidator {
+
+					@WebResult(name = "IsValid")
+					public boolean validate(CreditCard creditCard) {
+						// Business logic
+					}
+				}
+
+			@SOAPBinding -> Determina como el servicio web está unido a un protcolo de mensajería, concretamente, el protocolo SOAP. 
+
+				Existen dos estilos de programación dentro del mensaje SOAP:
+
+					- Document: El mensaje SOAP contiene el documento. Se envía como un documento en el elemento <soap:Body> sin incluir reglas adicionales de formato. Contiene lo acordado entre el cliente y el servidor. Es el estilo por defecto.
+
+					- RPC: El mensaje SOAP contiene los parámetros y los valores de retorno. El elemento <soap:Body>
+					contiene un elemento con el nombre del método o procedimiento remoto que se ha invocado. Este elemento a la vuelta contiene un elemento por cada parámetro del procedimiento.
+
+
+				También se puede definir los formatos de serialización / des-serialización:
+
+					- Literal: Los datos se serialzian de acuerdo a un esquema XML. Por defecto
+
+					- Encoded: La codificación SOAp especifica qué objetos, estructuras, arrays, grafos... Deben ser serializados.
+
+			Anotaciones JAXB -> Es posible utilizar las anotaciones de JAXB.
+
+				Para definir las diferentes clases que pueden ser utilizadas en el servicio SOAP. Ejemplo:
+
+					@XmlRootElement
+					public class CreditCard {
+
+						@XmlAttribute(required = true)
+						private String number;
+
+						@XmlAttribute(name = "expiry_date", required = true)
+						private String expiryDate;
+
+						@XmlAttribute(name = "control_number", required = true)
+						private Integer controlNumber;
+
+						@XmlAttribute(required = true)
+						private String type;
+
+						// Constructors, getters, setters
+					}
+
+				@PostConstruct y @PreDestroy para tener acceso a los eventos del ciclo de vida de los objetos EJB. Estos eventos se invocarán cuando se cree y se detruyan los objetos de Servicio Web.
+
+				Contexto -> Como todos los objetos EJB, los serviciso web también tienen un contexto del tipo javax.xml.ws.WebServiceContext inyectado con la anotación @Resource. Este objeto contiene los siguientes métodos:
+
+					getMessageContext -> Devuelve el objeto MessageContext para la petición que está siendo servida en este momento para est emétodo. Se puede utilizar para acceder al mensaje SOAP.
+
+					getUserPrincipal -> Devuelve el objeto Prinicpal que identifica el enviador de la petición.
+
+					isUserInRole -> Devuelve un boolean que indica si el usuario autenticado está incluido en algún rol específico.
+
+					getEndpointReference -> Devuelve el objeto EndpointReference asociado a este endpoint.
+
+
+		Desde el documento hacia el código Java. (wsimport) -> Es poosible generar apis que formen las peticions soap alñ servidor a aprtir de ficheros WSDL.
+
+	Gestión de excepciones: Las excepciones en el protocolo SOAP forman aprte del mensaje, así, cuando se ha producido una excepción en el servidor, se guarda un elemento exception en el mensaje de respuesta. Este elemento surge como resultado de la transformación de las excepciones de java en excecpiones de SOAP y se hace de forma transparente.
+
+		Ejemplo:
+
+			<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+				<soap:Body>
+					<soap:Fault>
+						<faultcode>soap:Server</faultcode>
+						<faultstring>java.lang.NullPointerException</faultstring>
+					</soap:Fault>
+				</soap:Body>
+			</soap:Envelope>
+
+		@WebFault(name = "CardValidationFault") -> Esta anotación permite crear una excecpión específica para el mensaje SOAP. Ejemplo:
+
+			<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+				<soap:Body>
+					<soap:Fault>
+						<faultcode>soap:Server</faultcode>
+						<faultstring>org.agoncal.book.javaee7.chapter14.CardValidatorException</faultstring>
+						<detail>
+							<ns2:CardValidationFault xmlns:ns2="http://chapter14.javaee7.book.agoncal.org/">
+								<message>The credit card number is invalid</message>
+							</ns2:CardValidationFault>
+						</detail>
+					</soap:Fault>
+				</soap:Body>
+			</soap:Envelope>
+
+		Por último, es posible detallar de forma más específica el mensaje de error que se envía al cliente mediante el uso de javax.xml.soap.SOAPFactory que crea objetos de tipo avax.xml.soap.SOAPFault. Ejemplo:
+
+			@WebService
+			public class CardValidator {
+				public boolean validate(CreditCard creditCard) {
+					
+					Character lastDigit = creditCard.getNumber().charAt( 
+					creditCard.getNumber().length() - 1);
+					
+					if (Integer.parseInt(lastDigit.toString()) % 2 == 0) {
+						return true;
+					} else {
+						SOAPFactory soapFactory = SOAPFactory.newInstance();
+						SOAPFault fault = soapFactory.createFault(" The credit card number is invalid", new QName("ValidationFault"));
+						
+						throw new CardValidatorException(fault);
+				}
+			}
+
+			<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+				<soap:Body>
+					<soap:Fault>
+						<faultcode>ValidationFault</faultcode>
+						<faultstring>The credit card number is invalid</faultstring>
+					</soap:Fault
+				</soap:Body>
+			</soap:Envelope>
+
+
+	Descriptor XML -> Al igual que todos los elementos de Java EE, los servicios SOAP también tienen un fichero de configuración xml. Está alojado en WEB-INF/webservices.xml. Este fichero, que es opcional, puede modificar el comportamiento definido en el código por las anotaciones. Ejemplo:
+
+		<webservices
+			xmlns="http://java.sun.com/xml/ns/javaee"
+			xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+			xsi:schemaLocation="http://java.sun.com/xml/ns/javaee
+			http://java.sun.com/xml/ns/javaee/javaee_web_services_1_3.xsd"
+			version="1.3"
+		>
+			<webservice-description>
+				<webservice-description-name>CardValidatorWS</webservice-description-name>
+				<port-component>
+					<port-component-name>CardValidator</port-component-name>
+					<wsdl-port>OverriddenPort</wsdl-port>
+					<service-endpoint-interface>
+						org.agoncal.book.javaee7.chapter14.Validator
+					</service-endpoint-interface>
+					<service-impl-bean>
+						<servlet-link>CardValidatorServlet</servlet-link>
+					</service-impl-bean>
+				</port-component>
+			</webservice-description>
+		</webservices>
+
+	Publicar el servicio web -> 
+		En un contener EE, es tan simple com odesplegar el war. 
+		
+		En servidor sin contorno EE, es necesario desplegar librerías con la implementación de los servicios web tales como Metro, CXF, or Axis2. 
+		
+		En un contenedor sin las necesidades de un contexto EE, es posible hacerlo con la JSE, utilizando el Api javax.xml.ws.Endpoint. Lo smétodos que se utilizan son publicsh y stop para rrancar y parar los servicios. Ejemplo:
+
+			@WebService
+			public class CardValidator {
+				public boolean validate(CreditCard creditCard) {
+					// Business logic
+				}
+				
+				public static void main(String[] args) {
+					Endpoint.publish("http://localhost:8080/cardValidator", new CardValidator());
+				}
+			}
+
+Invocando a servicios SOAP: Para invocar a los servicios SOAP es necesario generar una petición XML en formato SOAP. La pieza generada encargada de transfromar esa petición en un objeto XML.
+	
+	Si hablamos de Java, se pueden diferenciar dos tipos de consumidores de servicios SOAP:
+
+		- Codificados programáticamente. Se puede generar una pieza que ataque al servicio desde Java con diferentes herramientas tales como wsimport de metro.
+
+		- Por inyección en un contenedor JEE. Se utiliza la anotación @WebServiceRef

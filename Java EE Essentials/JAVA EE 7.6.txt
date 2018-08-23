@@ -1,0 +1,175 @@
+[JAVA EE 7] Capítulo 9: Transacciones
+-------------------------------------
+
+Las trasnacciones cubren los cuatro aspectos de una transacción:
+
+	- Atomicidad: Está compuesta de una o varias operaciones agrupadas en un único grupo de trabajo. Al final de la ejecución o todas o ninguna de als oepraciones será ejecutada.
+	- Consistencia: Los datos que se incluyen en el inicio de la transacción son lso mismos que al final de la misma.
+	- Aislamiento: El estado intermedio de las transacciones no es visible por las aplciaciones externas.
+	- Durabilidad: Una vez se haya hecho commit de la trasacción. Los cambios serán visibles por la aplicación
+
+Las transacciones cubren las distintas acciones a llevar a cabo sobre lso diferentes escenario cuando dos o más operaciones unitarias entran en juego sobre el mismo set de datos:
+
+	- Dirty reads: Ocurre cuando una transacción lee cambios sin commit sobre uan transacción ejecutada anteriormente.
+	- Repeatable reads: Ocurre cuando los datos leídos de forma recurrente durante el transucrso de una transacción deben ser los mismos.
+	- Phantom reads: Ocurre cuando los nuevos elementos añadidos a la base de datos son dertectables por transacciones que se iniciaron antes de la inserción. Las querys incluirán también esos resultados.
+
+Niveles de aislamientos: Son uno de lso mecanismos de control de concurrencia de las transacciones y 4 tipos:
+
+	- Read uncommitted (El nivel menos restricitivo): La transacción puede leer datos sobre los que no se haya hecho commit. Puedes incurrir en tres situaciones: Dirty, nonrepeatable y phantom.
+	- Read committed: La transacción no puede leer datos sobre los que no se haya hecho uncommit. Dirty reads are prevented. Puedes incurrir en dos situaciones: nonrepeatable o phantom.
+	- Repeatable read: Una transacción no puede cambiar datos que hayan sido leídos por otra transacción Solo puedes incurrir en una situación phantom.
+	- Serializable (El nivel más restrictivo): Una vez una transacción haya leído un dato, el resto de transaccione sno pueden ejecutar operaciones sobre el dato. Cubre todas las posibles situaciones.
+
+Elementos implicados en una gestión de transacciones:
+
+	- Gestor de transacciones: Es el componente responsable de gestionar las transacciones. Crea las trasnacciones, informa al Gestor de recursos de que está participando en una transacción y gestiona los commit y los rollback del gestor de recursos.
+	- Gestor de recursos: Es el responsable de gestionar los recursos y registrarlos en el gestor de transacciones.
+	- El recursos: Es el almacenaje persistente desde el que se lee y escribe al informaciónThe resource is the persistent storage from which you read or write (a database, a message.
+
+Dsitribución de Transacciones y XA: Cuando existen más de un origen de datos transaccional, es decir, sobre los que se necesita ejercer uan gestión transaccional, habalmso de operar con JTA y XA o lo que es lo mismo, un Gestor de recursos de Arquitectura extendida que es un estándar de opengroup.org. Este gestor de recursos se basa en un sistema de doble commit para asegurar la coherencia entre lso diferentes recursos gestionados por la transacción.
+
+Diferentes formas de usar Transacciones (JTA):
+	
+	- CMT (Container Manager Transaction): Los EJBs son transaccionales por naturaleza, de tal forma que la implementacién de las transacciones se hará de forma oculta al porgramador y por tanto, gestionada por el servidor de aplicaciones. Las trasnacciones de cliente, no se propagan en los métodos @Asynchronous.
+
+		@javax.ejb.TransactionAttribute: (<trans-attribute> [ejb-jar.xml]) Esta anotación puede ser aplicada al bean o a los métodos del bean de forma individual.
+
+			Posibles valores para el atributo unitName:
+
+				- REQUIRED: (Atributo por defecto) Los métodos siempre tienen que ser invocados con una transacción. El contenedor crea una transacción para aqullos métodos que sean invocados desde un contexto no transaccional y se ejecuta con la transacción del cliente si viene de un contexto transaccional. Se usa cuando se espera que las llamadas sean transaccionales pero no se está seguro de que los clientes tengan contexto transaccional.
+				
+				- REQUIRES_NEW: El contenedor siempre crea una transacción antes de ejecutar un método, tenga o no el cliente un contexto transaccional. Si la llamada viene de un contexto transaccional el contenedor suspende la transacción temporalemente, crea un segunda transacción y cuando hace commit o rollback sobre la última, resume la primera. De esta manera el hecho de que la trasnacción creada falle o no no afectará a la transacción que pudiera tener el cliente.
+
+				- SUPPORTS: El método EJB hereda el contexto transaccional del cliente. Si no exisitrea tal contexto, el contenedor invoca el método sin transacción. Se aconseja para peticiones a la base de datos de solo lectura.
+
+				- MANDATORY: El contenedor requiere una transacción antes de ejecutar el método de negocoio, pero no crea un nueva. Si llega algún método sin transacción, se lanza una javax.ejb.EJBTransactionRequiredException.
+
+				- NOT_SUPPORTED: Los métodos EJB, no serñan invcados en un contexto transaccional. Si el cliente tuviera una transacción, esta sería anulada, se invocaría el método de negocio y entonces retomaría la transacción detenida con el resultado del método.
+
+				- NEVER: Los método EJB no deben tener transacción, si la tienen, se arroja una javax.ejb.EJBException.
+
+			Ejemplo:
+
+				@Stateless
+				@TransactionAttribute(TransactionAttributeType.SUPPORTS)
+				public class ItemEJB {
+					
+					@PersistenceContext(unitName = "chapter09PU")
+					private EntityManager em;
+					
+					@Inject
+					private InventoryEJB inventory;
+					public List<Book> findBooks() {
+					TypedQuery<Book> query = em.createNamedQuery(FIND_ALL, Book.class);
+						return query.getResultList();
+					}
+
+					@TransactionAttribute(TransactionAttributeType.REQUIRED)
+					public Book createBook(Book book) {
+						em.persist(book);
+						inventory.addItem(book);
+						return book;
+					}
+				}
+
+		Rollback: En aquellos casos en los que no es suficiente el rollback gestionado. Es posible desde el cliente EJB parcar una trasacción como Rollback. Existen dos formas:
+
+			Mediante el Contexto y el uso del método ctx.setRollbackOnly():
+
+				@Stateless
+				public class InventoryEJB {
+					@PersistenceContext(unitName = "chapter09PU")
+					private EntityManager em;
+
+					@Resource
+					private SessionContext ctx;
+					public void oneItemSold(Item item) {
+						
+						item.decreaseAvailableStock();
+						
+						sendShippingMessage();
+						
+						if (inventoryLevel(item) == 0)
+							ctx.setRollbackOnly();
+					}
+				}
+
+			Se puede lanzar uan excecpión determinada para que el contenedor haga un Rollback. NO todas las excepciones generan un rollBack. De hecho, EJB define dos tipos de excecpiones:
+
+				- Exceptiones de aplicación: Excepciones relacionadas con la lógica de negcoia y manejadas por el EJB. Genreralmente heredan de Exception y estas no probocan Rollback de la transacción. No obstante, es posible forzar el rollback cuando se lanza este tipo de excepciones creando una excepción anotada con @ApplicationException(rollback = true)
+				
+				- Excepciones de sistema: Excepciones causadas por fallo en el sistema (Conexión con JNDI caída, Errores de JVM, conexión con la base de datos, NullPointer, etc...). Estas excepciones deben heredar de RuntimeException, java.rmi.RemoteException o javax.ejb.EJBException. Este tipo de excepciones provocan rollback de la transacción. No obstante, es posible forzar que la transacción no haga rollback con este tipo de excepciones si se obtiente una excepción anotada con @ApplicationException(rollback = false)
+				
+	- BMT (Bean-Managed Transactions) -> Es posible gestionar las transacciones de forma manual dentro de los EJB. Para ello, hay que desactivar el comportamiento automático mediante la anotación: @javax.ejb.TransactionManagement(TransactionManagementType.BEAN). Esto proboca que la inciailzaición y gestión de la transacción se deberá hacer dentro del EJB y que está no será propagada a otros Beans. 
+
+		La interfaz utilizada para la transacciones es avax.transaction.UserTransaction se extrae de SessionContext.getUserTransaction() y tiene los siguientes métodos:
+
+			- begin -> Comienza un atransacción y la asocia con el hilo actual.
+			- commit -> Hace commit de la transacción en el hilño actual.
+			- rollback -> Hace rollback de la trasacción unida al hilo actual.
+			- setRollbackOnly -> Marca la actual transacción para el rollback.
+			- getStatus -> Obtiene el estado de la transacción actual.
+			- setTransactionTimeout -> Modifica el tiemout de la transacción actual.
+
+	- Mediante la anotación javax.transaction.Transactional: Esta anotación permite que los métodos de una clase o lo spropios métodos anotados con ella, hagan uso de las trasnacciones de las que disponen los EJB de forma nativa.
+
+		El código de implementación de la anotación es: 
+
+			@Inherited
+			@InterceptorBinding
+			@Target({TYPE, METHOD})
+			@Retention(RUNTIME)
+			public @interface Transactional {
+
+				TxType value() default TxType.REQUIRED;
+				Class[] rollbackOn() default {};
+				Class[] dontRollbackOn() default {};
+
+				public enum TxType {
+					REQUIRED,
+					REQUIRES_NEW,
+					MANDATORY,
+					SUPPORTS,
+					NOT_SUPPORTED,
+					NEVER
+				}
+			}
+
+		Ejemplo de un servicio REST haciendo uso de las tranacciones.
+
+			@Path("book")
+			@Transactional
+			public class BookRestService {
+
+				@Context
+				private UriInfo uriInfo;
+
+				@PersistenceContext(unitName = "chapter09PU")
+				private EntityManager em;
+
+				@POST
+				@Consumes(MediaType.APPLICATION_XML)
+				public Response createBook(Book book) {
+					em.persist(book);
+					URI bookUri = uriInfo.getAbsolutePathBuilder().path(book.getId().toString()).build();
+					return Response.created(bookUri).build();
+				}
+
+				@GET
+				@Produces(MediaType.APPLICATION_XML)
+				@Transactional(Transactional.TxType.SUPPORTS)
+				public Books getAllBooks() {
+					TypedQuery<Book> query = em.createNamedQuery(Book.FIND_ALL, Book.class);
+					Books books = new Books(query.getResultList());
+					return books;
+				}
+			}
+
+		Manejo de excepciones: En este caso, se puede cambiar el comportamiento por defecto sobre qué excepciones deben realizar o no un rollback. Se realiza mediante los atributos:
+
+			- dontRollbackOn -> Recibe como parámetro una lista de clases que extienden de Exception que serán las que clases que no generen rollback en la transacción. Este atributo tiene preferencia sobre el otro.
+
+			- rollbackOn -> Recibe como parámetro una lista de clases que extienden de Exception que serán las que clases que generen rollback en la transacción.
+
+

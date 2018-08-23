@@ -1,0 +1,535 @@
+[JAVA EE 7] Capítulo 13: Messaging
+----------------------------------
+
+Basado en el protocolo MOM (Message-Oriented Middleware) Java EE ofrece el api JMS (Java Message Service) para trabajar con transferencia de mensajes. En sí, JMS, es un simple conjunto de interfaces que permite producir y consumir mensajes, pero no los almacena, para eso, se necesita un "proveedor o almacen de mensajes".	
+
+	
+	La arquitectura MOM a grandes rasgos está compuesta de:
+
+		- Proveedor: JMS es solo el api JMS así que necesita de una implementación de enrutado de mensajeses. Esa pieza es el porveedor. Se encarga de manjar el buffer de mensajes y de sus entregas.
+
+		En función del tipo de destino que provea el proveedor de mensajes se pueden distinguir dos tipos:
+
+			Modelo Point to Point (p2p) -> En este modelo el menaaje viaja de un cliente a un consumidor, se basa en la premisa de un cola que almacena los mensajes hasta que estos son consumidos. De tal manera que una vez el mensaje ha sido recogido este desaparece de la cola.
+
+			Modelo Pub-sub -> En este modelo el productor henera un mensaje que puede ser recibido por n clientes, en este tipo de modelo a lso clientes se les llama subscriptores porque deben subscribirse a un tema. Mientras los subscriptores permanecan unidos a ese tema recibirán mensajes. Esta subscripción puede caducar, si un cliente pasa demasiado tiempo inactivo.
+
+		- Clientes: Un cliente es un componente externo (Aplicación Java) que produce o consume mensajes del proveedor. Los clientes puedne consumir mensajes mediante los objetos MDB (Message-Driver Bean) que son consumidores asíncronoes de mensajes que se ejecutan dentro de un objeto EJB.
+		
+		- Mensajes: Es el Objeto que el cliente obtiene o envía al proveedor.
+		
+		- Objetos administrados: Sistema de Identificación de los mensajes en el proceedor para acceder a ellos desde los clientes, generalmente lookUps JNDI o inyección. Desde JMS2.0 Se puedne utilizar las anotaciones @JMSConnectionFactoryDefinition y @JMSDestinationDefinition para definir programáticamente estos objetos. Los dos tipos de ojetos administrados son:
+
+			Factoría de conexión: Usada por los clientes para crear una conexión al destino.
+
+			Destinos: Puntos de distribución de los mensajes que reciben, mantienen y distribuyen los mismos. Los destinos puden ser colas p2p o PubSub.
+
+	El api de Gestión de mensajes (JMS): JMS1.0 diferencia entre los dos tipos proveedores, Point to Pont con la factoría: QueueConnectionFactory y PubSub con la factoría: TopicConnectionFactory. Mientras que JMS 1.1 Genera interfaces para este cometido. Las interfaces de JMS son todavía un poco verbosas y se simplificaron en JMS 2.0. Pero es necesario conocer las interfaces y su forma simplificada:
+
+		Api clásico: 
+
+			ConnectionFactory: Permite a las aplicaciones conectarse a los proveedores creando objetos de tipo Connection. Las factorías deben ser obtenido mediante lookUp JNDI o injección de dependencias.
+
+				Ejemplo:
+
+					Context ctx = new InitialContext();
+					ConnectionFactory ConnectionFactory = (ConnectionFactory) ctx.lookup("jms/javaee7/ConnectionFactory");
+
+				Sus métodos son:
+
+					Connection createConnection() throws JMSException;
+					Connection createConnection(String userName, String password) throws JMSException;
+					JMSContext createContext();
+					JMSContext createContext(String userName, String password);
+					JMSContext createContext(String userName, String password, int sessionMode);
+					JMSContext createContext(int sessionMode);
+
+			Destination: Es un objeto administrado que contiene información de configuración de los poveedores tal como la dirección de destino. También se obtiene mediante lookUp.
+
+				Ejemplo: 
+
+					Context ctx = new InitialContext();
+					Destination queue = (Destination) ctx.lookup("jms/javaee7/Queue"); 
+
+			Connection: Las conexiones son thread-save y diseñadas para ser compartidas. De estas conexiones se pueden obtener sesiones. Para recibir mensajes a través de las sesiones es necesario inicilizar la conexión con el método connection.start();. Para dejar de recibir mensajes se puede utilizar el método: connection.stop(); Una vez se ha terminado de utklizarr la conexión es necesario llamar al método connection.close(); que cierra la sesiones así com osus productores y consumidores.
+
+				Ejemplo: 
+
+					Connection connection = connectionFactory.createConnection();
+
+			Session: Es un contexto simple extraído de la conexión para enviar y recibir mensajes en bloque. Es decir qu elso mensajes agrupados en una sesión serán todos enviados o por el contrario no será envaiado ninguno.
+
+				Método de creación: connection.createSession(boolean transaction, int int sessionMode);
+
+					transaction -> Determina si la conexión será transaccional o no. Si es true, los mensajes no serán enviados hasta que se haga un commit de la conexión. Si no, los mensajes serán enviados tan pronto como se haga un send() del mensaje.
+
+				Ejemplo:
+
+					Session session = connection.createSession(true, Session.AUTO_ACKNOWLEDGE);
+
+			Messages: Es la clase encargada de encapsular la información que se envía y recibe. Se divide en tres partes:
+
+				- Cabecera: Contiene información estándar que identifica el enrutado de los mensajes. Est información es:
+
+					- JMSDestination -> Indica el destino de adonde será enviado en mensaje. Se añade automáticamente al invocar a los métodos: send() o publish().
+
+					- JMSDeliveryMode -> Se añade automáticamente al invocar a los métodos: send() o publish(). JMS soporta dos tipos de mensajes:
+						
+						PERSISTENT: Indica al proveedorque se asegure de que los mensajes no se pierden en el transito
+						
+						NON_PERSISTENT: No asegura que lo smensajes sea correctamente entregados.
+					
+					- JMSMessageID -> Identifica de forma ineqúívoca cada uno de los mensajes. Se añade automáticamente al invocar a los métodos: send() o publish().
+
+					- JMSTimestamp -> Tiempo después del cual un mensaje deja de ser manejado por el proveedor. Se añade automáticamente al invocar a los métodos: send() o publish()
+					
+					- JMSCorrelationID -> Se puede usar este atributo para enlazar mensajes entre sí. Como por ejemplo un mensaje de respuesta con su petición. Gestioando por el clinte.
+
+					- JMSReplyTo -> Contiene el destino al cual enviar una réplica a un mensaje. Gestioando por el clinte.
+
+					- JMSRedelivered -> Se establece en el proveedor para indicar que el mensaje debe ser reenciado.
+
+					- JMSType -> Sirve como etuiquetador de mensajes. Es gestionado por el cliente
+
+					- JMSExpiration -> Tiempo de expiración de un mensaje que se establece cuando se envía un mensaje.
+					
+					- JMSPriority -> JMS define niveles de prioridad entre 0 y 9, siendo 0 el más bajo y 9 el más alto. Se añade automáticamente al invocar a los métodos: send() o publish().
+				
+				- Propiedades: Pares de nombre valor, que las aplicación puede establecer o leerare. También se destinana al filtrado de los mensajes. Los valores pueden ser del tipo: boolean, byte, short, int, long, float, double y String.
+
+					Ejemplo:
+
+						message.setFloatProperty("orderAmount", 1245.5f);
+						message.getFloatProperty("orderAmount");
+				
+				- Cuerpo: Contiene el mensaje y puede tener diferentes formatos: texto, bytes, objetos, etc.. Estos tipos se corresponden con diferentes clases que extienden la interfaz javax.jms.Message:
+
+					- StreamMessage -> Un mensaje cuyo cuerpo contiene un "strem" de valores primitivos. Se rellena y se lee de forma secuencial.
+					
+					- MapMessage -> Un mensaje cuyo cuerpo contiene un conjunto de pares clave-valor. Las claves de tipo String y los valroes de tipo primitivo.
+					
+					- TextMessage -> Un mensaje cuyo cuerpo contiene una cadena.
+					
+					- ObjectMessage -> Un mensaje que contiene objetos serializables o listas de objetos serializables.
+					
+					- BytesMessage -> Un mensaje que contiene un "stram" de bytes.
+
+				Ejemplo (Envío de mensaje):
+
+					// Gets the JNDI context
+					Context jndiContext = new InitialContext();
+
+					// Looks up the administered objects
+					ConnectionFactory connectionFactory = (ConnectionFactory) 
+					jndiContext.lookup("jms/javaee7/ConnectionFactory");
+					Destination queue = (Destination) jndiContext.lookup("jms/javaee7/Queue");
+					
+					// Creates the needed artifacts to connect to the queue
+					Connection connection = connectionFactory.createConnection();
+					Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+					MessageProducer producer = session.createProducer(queue);
+
+					// Sends a text message to the queue
+					TextMessage message = session.createTextMessage("Text message sent at " + new Date());
+					producer.send(message);
+					connection.close();
+
+				Ejemplo (Recibo de mensaje):
+
+					// Gets the JNDI context
+					Context jndiContext = new InitialContext();
+
+					// Looks up the administered objects
+					ConnectionFactory connectionFactory = (ConnectionFactory) 
+					jndiContext.lookup("jms/javaee7/ConnectionFactory");
+					Destination queue = (Destination) jndiContext.lookup("jms/javaee7/Queue");
+
+					// Creates the needed artifacts to connect to the queue
+					Connection connection = connectionFactory.createConnection();
+					Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+					MessageConsumer consumer = session.createConsumer(queue);
+					connection.start();
+
+					// Loops to receive the messages
+					while (true) {
+						TextMessage message = (TextMessage) consumer.receive();
+						System.out.println("Message received: " + message.getText());
+					}
+
+		Api simplificado: 
+
+			A partir de la versión JMS 2.0 contiene 3 interfaces:
+
+				- JMSContext -> Activa una conexión al proveedor JMS y un contexcto simple para enviar y recibir mensajes englobando las interfaces Connection y Session.
+
+					- void start() -> Inicia o reinicia la distribución de mensajes entrantes.
+					
+					- void stop() -> Par temporalmente el recibo de mensajes entrantes.
+
+					- void close() -> Cierra el JMSContext
+					
+					- void commit() -> Ejecuta un commit de todos los mensajes hechos en esta transacción y libera cualquier bloqueo que exsitiera.
+
+					- void rollback() -> Deshace cualquier mensaje hecho en la transacción y libera cualquier bloqueo que exsitiera.
+
+					- BytesMessage createBytesMessage() -> Crea un obeto de tipo BytesMessage.
+
+					- MapMessage createMapMessage() -> Crea un objeto de tipo MapMessag.
+					
+					- Message createMessage() -> Crea un objeto de tipo Message
+
+					- ObjectMessage createObjectMessage() -> Crea un mensaje de tipo ObjectMessage.
+
+					- StreamMessage createStreamMessage() -> Crea un mensaje de tipo StreamMessage.
+
+					- TextMessage createTextMessage() -> Crea un mensaje de tipo TextMessage.
+
+					- Topic createTopic(String topicName) -> Crea un objeto Topic
+
+					- Queue createQueue(String queueName) -> Crea una cola
+
+					- JMSConsumer createConsumer(Destination destination) -> Crea un soncumidor de mensajes para la dirección específica.
+
+					- JMSConsumer createConsumer(Destination destination, String messageSelector) -> Crea un objeto consumidor para el destino específico usando un selector de mensajes
+
+					- JMSProducer createProducer() -> Crea un objeto productor de mensajes que puede ser configurado para enviar mensajes 
+
+					- JMSContext createContext(int sessionMode) -> Crea un nuevo contexto en nuevo modo de session.
+				
+				- JMSProducer -> Objeto creado por JMSContext que se usa para enviar mensajes tanto a colas como topic. 
+
+					Contiene los siguientes métodos:
+
+						- get/set[Type]Property -> Métodos que estabelcen y obtienen propiedades de lso mensajes. Ype es el tipo de la propiedad y puede ser Boolean, Byte, Double, Float, Int, Long, Object, Short o String.
+						
+						- JMSProducer clearProperties() -> Borra el conjunto de propiedades
+
+						- Set<String> getPropertyNames() -> Devuelve un set de solo lectura con las propiedades que se hubieran establecido.
+
+						- boolean propertyExists(String name) -> Determian si la porpiedad ha sido o no establecida.
+
+						- get/set[Message Header] -> Funciona igual que la obtención de propiedades con la salvedad de que se trata de elementos conocidos de la cabecera. MessageHeader puede tener los valores: DeliveryDelay, DeliveryMode, JMSCorrelationID, JMSReplyTo, JMSType, Priority, TimeToLive
+
+						- JMSProducer send(Destination destination, Message message) -> Envía un mensaje al destino especificado.
+
+						- JMSProducer send(Destination destination, String body) -> En vía un texto al destino especificado.
+
+					Pueden crearse productores fuera o dentro de un contenedor web:
+
+						Fuera de un contenedor web:
+
+							// Gets the JNDI context
+							Context jndiContext = new InitialContext();
+
+							// Looks up the administered objects
+							ConnectionFactory connectionFactory = (ConnectionFactory) 
+							jndiContext.lookup("jms/javaee7/ConnectionFactory");
+							Destination queue = (Destination) jndiContext.lookup("jms/javaee7/Queue");
+
+							// Sends a text message to the queue
+							try (JMSContext context = connectionFactory.createContext()) {
+								context.createProducer().send(queue, "Text message sent at " + new Date());
+							}
+
+						En un contenedor: Se hace uso de la antación @Resource. Esta tiene los siguientes atributos:
+
+							name -> EL nombre JNDI del recurso 
+
+							type -> El tipo java del recurso(e.g., javax.sql.DataSource or javax.jms.Topic)
+
+							authenticationType -> El tipo de autenticación a usar para el recurso, de contenedor o de aplcación.
+
+							- shareable -> Si el recurso puede sere compartido
+
+							- mappedName -> A product-specific name that the resource should map to
+							
+							- lookup -> Nombre JNDI de la instancia que se desea obtener en el objet anotado.
+
+							- description -> Descripción del recurso.
+
+							Ejemplo:
+
+								@Stateless
+								public class ProducerEJB {
+
+									@Resource(lookup = "jms/javaee7/ConnectionFactory")
+									private ConnectionFactory connectionFactory;
+
+									@Resource(lookup = "jms/javaee7/Queue")
+									private Queue queue;
+
+									public void sendMessage() {
+										try (JMSContext context = connectionFactory.createContext()) {
+											context.createProducer().send(queue, "Text message sent at " + new 	Date());
+										}
+									}
+								}
+
+						En un contenedor con CDI: 
+
+							public class Producer {
+								@Inject
+								@JMSConnectionFactory("jms/javaee7/ConnectionFactory")
+								@JMSPasswordCredential(userName="admin",password="mypassword")
+								private JMSContext context;
+
+								@Resource(lookup = "jms/javaee7/Queue")
+								private Queue queue;
+
+								public void sendMessage() {
+									context.createProducer().send(queue, "Text message sent at " + new Date());
+								}
+							}
+				
+				- JMSConsumer: Objeto creado por JMSContext que se usa para enviar mensajes a la cola o al topic de forma síncrona o asíncrona. Puede ser creado mediante inyección EJB o mediante lookUp. 
+
+					El api contiene los siguientes métodos:
+
+						- void close() -> Cierra el JMSConsumer.
+						
+						- Message receive() -> Recibe el siguiente mensaje producido.
+
+						- Message receive(long timeout) -> Recibe el siguiente mensaje producido que llegue dentro del perído de tiempo especificado.
+
+						- <T> T receiveBody(Class<T> c) -> Recibe el siguiente mensaje producido y recobe su cuerpo como un objeto del tipo especificado
+
+						- Message receiveNoWait() -> Recibe el siguiente mensaje si no necesita esperar para obtenerlo.
+						
+						- void setMessageListener(MessageListener listener) -> Establece un escuchador de mensajes (MessageListener)
+
+						- MessageListener getMessageListener() -> Obtiene el escuchador de mensajes.
+
+						- String getMessageSelector() -> Obtiene el selector de expresión del mensaje.
+
+					Los consumidores pueden obtener mensajes de dos formas:
+
+						- Síncrona -> LLamando al método recive(). También se puede hacer uso de injección de dependencias dentro de un contenedor. Ejemplo fuera de un contenedor:
+
+							public class Consumer {
+								public static void main(String[] args) {
+
+									try {
+										// Gets the JNDI context
+										Context jndiContext = new InitialContext();
+										
+										// Looks up the administered objects
+										ConnectionFactory connectionFactory = (ConnectionFactory) jndiContext.lookup("jms/javaee7/ConnectionFactory");
+
+										Destination queue = (Destination) jndiContext.lookup("jms/javaee7/Queue");
+										
+										// Loops to receive the messages
+										try (JMSContext context = connectionFactory.createContext()) {
+											while (true) {
+												String message = context.createConsumer(queue).receiveBody(String.class);
+											}
+										}
+									} catch (NamingException e) {
+										e.printStackTrace();
+									}
+								}
+							}
+
+						- Asíncrona -> Implementando una interfaz MessageListener on método onMessage().
+
+							public class Listener implements MessageListener {
+								public static void main(String[] args) {
+									try {
+									
+										// Gets the JNDI context
+										Context jndiContext = new InitialContext();
+										
+										// Looks up the administered objects
+										ConnectionFactory connectionFactory = (ConnectionFactory) jndiContext.lookup("jms/javaee7/ConnectionFactory");
+
+										Destination queue = (Destination) jndiContext.lookup("jms/javaee7/Queue");
+										
+										try (JMSContext context = connectionFactory.createContext()) {
+											context.createConsumer(queue).setMessageListener(new Listener());
+										}
+									} catch (NamingException e) {
+										e.printStackTrace();
+									}
+								}
+
+								// Implementa onMessage para recibir mensajes
+								public void onMessage(Message message) {
+									System.out.println("Async Message received: " + message.getBody(String.class));
+								}
+							}
+
+	Configuración de confianza: Existen varios elementos de configuración que pueden mejorar la confianza de los mensajes:
+
+		- Filtrado de mensajes: Es poisble filtrar los mensajes que llegan al consumidor para evitar sobrecarga de recursos. Este filtrado se puede ejercer sobre las propiedades de la cabecera y sobre las propiedades clave valor del mensaje. Las condiciones se expresan mediante cadenas en formato SQL92. Ejemplo:
+
+			context.createTextMessage().setIntProperty("orderAmount", 1530);
+			context.createTextMessage().setJMSPriority(5);
+
+			context.createConsumer(queue, "JMSPriority < 6").receive();
+			context.createConsumer(queue, "JMSPriority < 6 AND orderAmount < 200").receive();
+			context.createConsumer(queue, "orderAmount BETWEEN 1000 AND 2000").receive();
+
+		
+		- Establecer tiempo de vida: Permite que los mensajes sean borrados cuando se pase un determinado tiempo que los convierte en obsoletos. Ejemplo:
+
+			context.createProducer().setTimeToLive(1000).send(queue, message);
+		
+		- Tipo de persistencia: Es posibel establecer el tipo de persistencia de lso mensajes. El mensaje se envía una única vez, o se persiste para ser enviado de 1 a n veces. Los dos tipos se corresponden con el enumerado: DeliveryMode. Ejemplo:
+
+			context.createProducer().setDeliveryMode(DeliveryMode.NON_PERSISTENT).send(queue, message);
+		
+		Garantía de recibo: Permite establecer varios niveles de permisibidad a la hora de determinar si un mensaje ha sido entregado o no.
+
+			Se pueden definir varios niveles:
+
+				AUTO_ACKNOWLEDGE: En este caso la sesión se encraga, de forma automática de informar del recibo de un mensaje.
+				
+				CLIENT_ACKNOWLEDGE: El cliente debe encargarse de notificar el recibo del mensaje mediante el método Message.acknowledge().
+				
+				DUPS_OK_ACKNOWLEDGE: Esta opción indica a la sesión que el acuso de recibo se haga después del recibo. Esto puede llegar a que los mensajes duplicados causen errores. Por eso, solo se debe utilizar en consumidores que soporten los mensajes duplicados. Si el mensaje fuera reenviado, se añadiría la cabecera JMSRedelivered=true al mensaje.
+
+			Ejemplo:
+
+				// Producer
+				@Inject
+				@JMSConnectionFactory("jms/connectionFactory")
+				@JMSSessionMode(JMSContext.AUTO_ACKNOWLEDGE)
+				private JMSContext context;
+
+				...
+
+				context.createProducer().send(queue, message);
+
+				// Consumer
+				message.acknowledge();
+		
+		Creación de subscritores permanentes: Es la habilidad de poder crear mensajes que se mantengan en el timpo hasta que un subscriptor lo reciba. Ejmplo:
+
+			context.createDurableConsumer(topic, "javaee7DurableSubscription").receive();
+		
+		Establecer prioridades: Se puede establecer la prioridad de un mensaje. Ejemplo:
+
+			context.createProducer().setPriority(2).send(queue, message);
+
+
+	Message Driver Beans (MDBs) -> Son consumidores asíncronos invocados por el contenedor EJB como resultado de la llegada de un mensaje. Estos objetos son gestionados por el contenedor de aplicaciones y por lo tanto, el cliente se puede olvidar de las trasacciones, multihilos, seguridad, etc. , inyectar dependecias, o ejecutar métodos callback del cilo de vida como cualquier otro Bean Java EE. De esta manera, en cuanto llega un mensaje al contenedor, este llama al MDB correspondiente.
+
+		Todo MDB debe tener:
+
+			- Debe contener la anotación @javax.ejb.MessageDriven o una derivada. Esta anotación indica al compilador que se trata de un MDB
+
+				Código de la anotacióón:
+
+					@Target(TYPE) @Retention(RUNTIME)
+					public @interface MessageDriven {
+						String name() default "";
+						Class messageListenerInterface default Object.class;
+						ActivationConfigProperty[] activationConfig() default {};
+						String mappedName();
+						String description();
+					}
+
+				Partes de al anotación:
+					name -> Nombre del MDB. Por defecto es el nombre de la clase
+					messageListenerInterface -> En caso de que la clase implemente varias interfaces debe especificarse al que implemeta el escuchador.
+					mappedName -> Nombre de al dirección JNDI donde escuchará el MDB.
+					description -> Una descripción del MDB.
+					activationConfig -> Permite especificar propiedades de configuración con la anotación @ActivationConfigProperty:
+
+						Código de la anotación:
+
+							@Target({}) @Retention(RUNTIME)
+							public @interface ActivationConfigProperty {
+								String propertyName();
+								String propertyValue();
+							}
+
+						Posibles rpopiedades:
+
+							- acknowledgeMode -> El modo de acuso de recibo (Por defecto AUTO_ACKNOWLEDGE).
+							- messageSelector -> La cadena seleccionadora de mesnajes usada por la CMDB.
+							- destinationType -> Tipo de destino (TOPIC o QUEUE)
+							- destinationLookup -> El nombre de lookUp de una foniguración de administración de Queue o Topic.
+							- connectionFactoryLookup -> El nombre de lookUp de una ConnectionFactory de administración.
+							- destination -> Nombre del destino.
+							- subscriptionDurability -> La duración de la subscripción. Por defecto es NON_DURABLE.
+							- subscriptionName -> Nombre de la subscripción del consumidor.
+							- shareSubscriptions -> Se utiliza si el entregador de mensahes está desarrollado en un cluster.
+							- clientId -> Identificador del cliente que será usado cuando se conecta al proveedor JMS.
+
+			- Implementación de la interfaz javax.jms.MessageListener.
+			- Tiene que ser public y no puede ser abstract ni final.
+			- Debe tener un constructor sin argumentos
+			- No puede implementar el método finalize.
+
+		Ejemplo:
+
+			@MessageDriven(
+				mappedName = "jms/javaee7/Topic",
+				activationConfig = {
+					@ActivationConfigProperty(
+						propertyName = "acknowledgeMode",
+						propertyValue = "Auto-acknowledge"
+					),
+					@ActivationConfigProperty(
+						propertyName = "messageSelector",
+						propertyValue = "orderAmount < 3000"
+					)
+				}	
+			)
+			public class BillingMDB implements MessageListener {
+				public void onMessage(Message message) {
+					System.out.println("Message received: " + message.getBody(String.class));
+				}
+			}
+
+		El contexto MDB: Uno de los elementos que se puedne inyectar en un MDB es el contexto: @Resource private MessageDrivenContext context. Esta interfaz extiende javax.ejb.EJBContext e implementa los siguientes métodos:
+
+			- getCallerPrincipal -> Devuelve el java.security.Principal asociado con la invocación.
+			- getRollbackOnly -> Determina si la transacción ha sido marcada para rollback.
+			- getTimerService -> Devuelve la interfaz javax.ejb.TimerService.
+			- getUserTransaction -> Devuelve la interfaz javax.transaction.UserTransaction necesaria para trabajar con transacciones. Solo los BMT (MDBs con Bean Manager Transaction) pueden usar este método.
+			- isCallerInRole -> Determina si el que llamó al método tiene un determinado rol.
+			- Lookup -> Permite al MDB mirar sus entradas de entrono por nombre JNDI.
+			- setRollbackOnly -> Marca la instancai actual como RollBack. Solo los BMT (MDBs con Bean Manager Transaction) pueden usar este método.
+
+		MDBs como productores de mensajes -> Es posible que un MDB se vea envuelto en workflow y tenga que enviar un mensaje a otro consumidor para alertar de determinado evento. Esto es posible inyectando el JMS Api con las anotaciones @Resource and @JMSConnectionFactory. Ejemplo:
+
+			@MessageDriven(
+				mappedName = "jms/javaee7/Topic", activationConfig = {
+					@ActivationConfigProperty(
+						propertyName = "acknowledgeMode",
+						propertyValue = "Auto-acknowledge"
+					),
+					@ActivationConfigProperty(
+						propertyName = "messageSelector",
+						propertyValue = "orderAmount BETWEEN 3 AND 7"
+					)
+				}
+			)
+			public class BillingMDB implements MessageListener {
+			
+				@Inject
+				@JMSConnectionFactory("jms/javaee7/ConnectionFactory")
+				@JMSSessionMode(JMSContext.AUTO_ACKNOWLEDGE)
+				private JMSContext context;
+			
+				@Resource(lookup = "jms/javaee7/Queue")
+				private Destination printingQueue;
+			
+				public void onMessage(Message message) {
+					System.out.println("Message received: " + message.getBody(String.class));
+					sendPrintingMessage();
+				}
+
+				private void sendPrintingMessage() throws JMSException {
+					context.createProducer().send(printingQueue, "Message has been received and resent");
+				}
+			}
+
+		MDB en modo transaccional -> El envío de mensajes puede comportarse como una transacción en el momento en el que más de un mensaje tienen que ser envaidos de forma conjunta. El inicio de la transacción se efectúa con el método onMessage() y el commit se ejecuta cuando el método devuelve, a nos er que la transacción sea marcada como rollBack. Los MDB solo pueden utilizar dos tipos de @javax.ejb.TransactionAttribute:
+
+			REQUIRED (por defecto): Si el MDB invoca otro Bean Java EE, el contenedor pasa el conecto de trasacción con la invocación. El contenedor ejecutará el commit cuando el escuchador de mensajes se haya completado.
+
+			NOT_SUPPORTED: Si el MDB invoca otro bean Java EE, el contenedor no pasa el contecto de transacción a la invocación.
+
+		Gestión de excepciones -> Se comportan igual que las excecpiones EJB.

@@ -1,0 +1,620 @@
+[JAVA EE 7] Capítulo 2: Context and Dependency Injection:
+---------------------------------------------------------
+
+Ciclo de vida de los Bean gestionados:
+
+	De forma distinta a java, los Bean no se instancian con un new. Se injecta el bean en el contenedor y es él, el encargado de gestionar su creación, la gestión de dependencias y su destrucción. Al programador se le ofrecen manejadores para gestionar los eventos:
+		- @PostConstruct (Tras la instanciación y la gestión de dependencias)
+		- @PreDestroy (Antes de la destrucción de la instancia)
+
+Contexto (Scopes): 
+
+	Los Beans gestionados viven en un determinado contexto y ámbito bien definidos. Así, cada tipo de Bean tiene su contexto y ámbito de existencia (instanciación, inyección de dependecias y destrucción)
+
+Interceptores:
+
+	Basada en la programación AOP (Orientada a aspectos) los interceptores permiten desarrollar comportamientos transversales a la lógica de la aplicación. Por ejemplo: Un aviso cuando un cliente gasta más de 1000 dolares, escritura de las trazas siempre igual... Igual que el ciclo de vida de los bean, estos interceptores son gestionados por el contenedor y se ejecutan antes y después de la ejecución de un método.
+
+Descriptores de implementación:
+
+	En torno a cada especificación de Java EE existe un XML opcional mandatorio sobre las anotaciones que permite gestionar el comportamiento gestionado de la especificación.
+
+La CDI (Context and Dependenci Injection) consta de la siguiente paquetería:
+
+	Package 					Description
+	javax.inject 				Contains the core Dependency Injection for Java APIs (JSR 330)
+	javax.enterprise.inject 	Core dependency injection APIs
+	javax.enterprise.context 	CDI scopes and contextual APIs
+	javax.enterprise.event 		CDI events and observers APIs
+	javax.enterprise.util 		CDI utility package
+	javax.interceptor 			Contains the Interceptor APIs (JSR 318)
+	javax.decorator 			CDI decorator APIs
+
+Las implementaciones de referencia son: 
+	
+	Weld (Ri), OpenWebBeans y Caucho CanDI
+
+Construcción de un Bean CDI:
+
+	Se entiende como clase Bean CDI toda aquella que no sea una clase interna no estática, sea una clase concreta anotada con @Decorator y Tenga un constructor sin parámetros o un constructor anotado con @Inject.
+
+Inyección de dependencias:
+
+	- @Inject
+
+		A partir de Java EE7 se define la anotación @Inject que permite inyectar cualquier elemento en cualquier especificación. Pueden seguirse utilizando las anotaciones de asignación específicas pero se recomienda usar la nueva siempre que se pueda. E
+
+		Ejemplo:
+
+			public class BookService {
+
+				@Inject
+				private NumberGenerator numberGenerator;
+
+				public Book createBook(String title, Float price, String description) {
+					Book book = new Book(title, price, description);
+					book.setIsbn(numberGenerator.generateNumber());
+					return book;
+				}
+			}
+
+		Los puntos de injección se puede ejercer sobre los atributos, los setter o los constructores (Solo uno por clase).
+
+	- @Default
+
+		Permite definir una implemntación por defecto en caso de que la llamada al servicio no determine una implementación. Además, en caso de existir una única implementación, esa será @Default por defecto.
+
+	- @Qualifier
+
+		Se establece en atributos para definir inyecciones cualificadas en un servicio cuando existe más de una implementación.
+
+		Ejemplo:
+
+			public class BookService {
+
+				@Inject @MyElement
+				private NumberGenerator numberGenerator;
+
+				public Book createBook(String title, Float price, String description) {
+					Book book = new Book(title, price, description);
+					book.setIsbn(numberGenerator.generateNumber());
+					return book;
+				}
+			}
+
+			@Qualifier
+			@Retention(RUNTIME)
+			@Target({FIELD, TYPE, METHOD})
+			public @interface MyElement { }
+
+			@MyElement
+			public class IsbnGenerator implements NumberGenerator {
+				public String generateNumber() {
+					return "13-84356-" + Math.abs(new Random().nextInt());
+				}
+			}
+
+		Los cualificadores admiten valores para no tener que generar una anotación por cada tipo de implementación o incluso es posible añadir más de un cualificador para especificar una determinada implementación.
+
+		Ejemplo:
+
+			@Inject @NumberOfDigits(value = Digits.THIRTEEN, odd = false)
+			private NumberGenerator numberGenerator;
+
+			@NumberOfDigits(value = Digits.THIRTEEN, odd = false)
+			public class IsbnEvenGenerator implements NumberGenerator {...}
+
+	- @Alternative
+
+		Cuando una implementación está marcada como alternativa, ésta se ejecuta si se habilita una opción del fichero de propiedades beans.xml.
+
+		Ejemplos:
+
+			@Alternative @ThirteenDigits
+			public class AlternativeClass implements NumberGenerator {...}
+
+			<beans
+				xmlns="http://xmlns.jcp.org/xml/ns/javaee"
+				xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+				xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee
+				http://xmlns.jcp.org/xml/ns/javaee/beans_1_1.xsd"
+				version="1.1" bean-discovery-mode="all"
+			>
+				<alternatives>
+					<class>mi.paqueteria.AlternativeClass</class>
+				</alternatives>
+			</beans>
+
+	- @Producers
+
+		Permite injectar valores primitivos a objetos que no sean del proyecto. Ya que @Inject por defecto solo permite inyectar elementos que tengan el fichero bean.xml generado en el direcotrio META-INF est aes al manera de inyectar elementos externos.
+
+		Ejemplo:
+
+			public class NumberProducer {
+				@Produces @ThirteenDigits
+				private String prefix13digits = "13-";
+				
+				@Produces @ThirteenDigits
+				private int editorNumber = 84356;
+				
+				@Produces @Random
+				public double random() {
+					return Math.abs(new Random().nextInt());
+				}
+			}
+
+			@ThirteenDigits
+			public class IsbnGenerator implements NumberGenerator {
+				
+				@Inject @ThirteenDigits
+				private String prefix;
+				
+				@Inject @ThirteenDigits
+				private int editorNumber;
+				
+				@Inject @Random
+				private double postfix;
+				
+				public String generateNumber() {
+					return prefix + editorNumber + postfix;
+				}
+			}
+
+		En aquellos casos en los que las implementaciones de @Producers necesitan información sobre el punto donde son inyectadas, existe un api (InjectionPoint) que puede ser pasado al método que implementa el porducer con los siguientes métodos:
+
+			Type getType() -> Gets the required type of injection point
+			Set<Annotation> getQualifiers() -> Gets the required qualifiers of the injection point
+			Bean<?> getBean() -> Gets the Bean object representing the bean that defines the injection
+			point
+			Member getMember() -> Gets the Field object in the case of field injection
+			Annotated getAnnotated() -> Returns an AnnotatedField or AnnotatedParameter depending upon
+			whether the injection point is an injected field or a constructor/method
+			parameter
+			boolean isDelegate() -> Determines if the injection point is a decorator delegate injection point
+			boolean isTransient() -> Determines if the injection is a transient field
+
+		Ejemplo: 
+
+			public class LoggingProducer {
+
+				@Produces
+				private Logger createLogger(InjectionPoint injectionPoint) {
+					return Logger.getLogger(injectionPoint.getMember().getDeclaringClass().getName());
+				}
+			}
+
+			@Inject Logger log;
+
+	- @Disposes
+
+		Anotaciones añadidas a objetos producidos (@Produces) pasados por parámetro a funciones de implementación que permiten una ejecución al finalizar el ámbito del scope con el objeto. Debe encontrarse en la misma clase que el método o elemento productor.
+
+		Ejemplo:
+
+			public class JDBCConnectionProducer {
+
+				@Produces
+				private Connection createConnection() {
+
+					Connection conn = null;
+					try {
+						Class.forName("org.apache.derby.jdbc.EmbeddedDriver").newInstance();
+						conn = DriverManager.getConnection("jdbc:derby:memory:chapter02DB", "APP", "APP");
+					} catch (InstantiationException | IllegalAccessException | ClassNotFoundException) {
+						e.printStackTrace();
+					}
+						return conn;
+				}
+
+				private void closeConnection(@Disposes Connection conn) throws SQLException {
+						conn.close();
+				}
+			}
+
+	- @Named
+
+		Debido a que la inyección de dependencias no tiene referencias de nombres, es necesario crear una notación que genera dichos nombres para ser utilizados por sistemas que utilicen este tipo de etiquetas. Para se utiliza la anotación @Named que por defecto nombre todos los atributos, métodos y nombres de clase con el nombre del método, atributo o clase, siendo que las clases por defecto se pone la primera letra a minúscula. Además, esta notación admite un atributo cadena con el ques epuede sobreescribir el nombre por defecto.
+
+	- Scopes:
+
+		Marcan el ámbito de vida de los objetos instanciados en las inyecciones de información. Este mecanismo es necesario debido a que el programador no tiene control sobre la destrucción del objeto inyectado. Existen varios ámbitos diferentes:
+
+			- Scope de aplicación (@ApplicationScoped): Se crea una única instancia que permanece durante la ejecución completa de la aplicación y es destruida cuando se apaga o termina la ejecución de la misma. Es necesario tener cuidado con la concurrencia de datos.
+
+			- Scope de sesión (@SessionScoped): Se crea un ainstancia por sesión de usuario que permanece viva durante la misma.
+
+			- Scope de petición (@RequestScoped): Se crea una instancia por petición HTTP. La instancia vive durante la gestión de la petición.
+
+			- Scope de conversación (@ConversationScoped): Convive entre múltiples sessiones de la aplicación mientras se invocan el inicio y el fin de el ámbito programáticamente. Se suelen usar en aplicaciones que contienen múltiples pasos de ejecución. Este ámbito permite injectar un API con los siguientes métodos:
+
+			void begin() -> Marks the current transient conversation long-running
+			void begin(String id) -> Marks the current transient conversation long-running, with a specified
+			identifier
+			void end() -> Marks the current long-running conversation transient
+			String getId() -> Gets the identifier of the current long-running conversation
+			long getTimeout() -> Gets the timeout of the current conversation
+			void setTimeout(long millis) -> Sets the timeout of the current conversation
+			boolean isTransient() -> Determines if the conversation is marked transient or long-running
+
+			Ejemplo:
+
+				@ConversationScoped
+				public class CustomerCreatorWizard implements Serializable {
+
+					private Login login;
+					
+					private Account account;
+					
+					@Inject
+					private CustomerService customerService;
+
+					@Inject
+					private Conversation conversation;
+
+					public void saveLogin() {
+
+						// Se inicia el scope Conversacional
+						conversation.begin();
+
+						login = new Login();
+					}
+
+					public void saveAccount() {
+						account = new Account();
+					}
+
+					public void createCustomer() {
+						Customer customer = new Customer();
+						customer.setLogin(login);
+						customer.setAccount(account);
+						customerService.createCustomer(customer);
+
+						// Se termina el scope conversacional
+						conversation.end();
+					}
+				}
+
+			- Pseudo-Scope Dependiente (@Dependent): El ciclo de vida es el mimso que el del cliente. Se crea una instancia cada vez que se necesita una inyección y se borra cuando el destino de la referencia se borra. Es el scope por defecto para CDI.
+
+		Los elementos inyectados pueden ver mezclados sus ámbitos inyectando un elemento de un ámbito menro en uno de ámbito mayor o viceversa
+
+	- Interceptores:
+
+		Interceptor de constructor (@AroundConstruct): Asociado con un constructor de la clase Objeto
+		Interceptor de Método (@AroundInvoke): Asociado con un determinado método de negocio
+		Timeout method interceptors (@AroundTimeout): Se ejcutan cuando se va a lanzar un método de timeOut and
+		Interceptores del ciclo de vida (@PostConstruct y @PreDestroy): Interceptores que se interponen en el transcurso del ciclo de vida de la generación de Beans.
+
+		Los interceptores se pueden crear directamente dentro de una clase de servicio. Ese interceptor se ejecutaría cada vez dependiendo del tipo de interceptor que se ejcutarna los métodos de la clase de servicio. 
+
+		También pueden incluirse en una clase separada. De esta manera, se puede utilizar esa clase como atributo de la anotación @javax.interceptor.Interceptors para que el interceptor se en el método anotado con @Interceptors. El atributo puede ser una lista de clases que se ejecutan de forma encadenada en el orden incluido en el atributo.
+
+		Ejemplo:
+
+			public class LoggingInterceptor {
+				@Inject
+				private Logger logger;
+				
+				// Se ejeucta cuando se instancia la clase
+				@AroundConstruct
+				private void init(InvocationContext ic) throws Exception {
+					logger.fine("Entering constructor");
+					try {
+						ic.proceed();
+					} finally {
+						logger.fine("Exiting constructor");
+					}
+				}
+
+				// Se ejecuta antes y después de las ejecuciones de llos métodos
+				@AroundInvoke
+				public Object logMethod(InvocationContext ic) throws Exception {
+					logger.entering(ic.getTarget().toString(), ic.getMethod().getName());
+					try {
+						return ic.proceed();
+					} finally {
+						logger.exiting(ic.getTarget().toString(), ic.getMethod().getName());
+					}
+				}
+			}
+
+			// Una clase que utiliza los interceptores en uno de sus métodos
+			@Transactional
+			public class CustomerService {
+
+				@Inject
+				private EntityManager em;
+				
+				@Interceptors(LoggingInterceptor.class)
+				public void createCustomer(Customer customer) {...}
+
+				public Customer findCustomerById(Long id) {...}
+			}
+
+			// Una clase que utiliza los interceptors en todos sus métodos
+			@Transactional
+			@Interceptors(LoggingInterceptor.class)
+			public class CustomerService {
+				
+				public void createCustomer(Customer customer) {...}
+				
+				public Customer findCustomerById(Long id) {...}
+			}
+
+		También se puede utilizar la anotación @javax.interceptor.ExcludeClassInterceptors para excluir la ejecución de los interceptores en un determinado método de una clase anotado con @Interceptors.
+
+		Ejemplo:
+
+		@Transactional
+		@Interceptors(LoggingInterceptor.class)
+		public class CustomerService {
+
+			public void createCustomer(Customer customer) {...}
+
+			public Customer findCustomerById(Long id) {...}
+
+			// En este método no se ejecutan los interceptores
+			@ExcludeClassInterceptors
+			public Customer updateCustomer(Customer customer) { ... }
+		}
+
+		Los interceptores deben tener la siguiente estructura:
+
+			Object <METHOD>(InvocationContext ic) throws Exception;
+
+			- Los métodos pueden ser public, private, protected, o package-level pero no pueden ser static o final.
+			- Deben tener javax.interceptor.InvocationContext como parámentro. Si varios interceptores se lanzan de forma encadenada, todo reciben la misma instancia de InvocationContext añadiendo antes información sobre su paso por el intercetor al objeto.
+
+			El api Contiene los sigueintes métodos:
+
+				- getContextData() -> Allows values to be passed between interceptor methods in the same InvocationContext instance using a Map.
+				- getConstructor() -> Returns the constructor of the target class for which the interceptor was invoked.
+				- getMethod() -> Returns the method of the bean class for which the interceptor was invoked.
+				- getParameters() -> Returns the parameters that will be used to invoke the business method.
+				- getTarget() -> Returns the bean instance that the intercepted method belongs to.
+				- getTimer() -> Returns the timer associated with a @Timeout method.
+				- proceed() -> Causes the invocation of the next interceptor method in the chain or the bean invocation method. It returns the result of the next method invoked. If a method is of type void, proceed returns null.
+				- setParameters() -> Modifies the value of the parameters used for the target class method invocation. The types and the number of parameters must match the bean’s method signature, or IllegalArgumentException is thrown.
+
+			- Deben deben devolver Object.
+			- El método debe devolver una excepción controlada (Exception)
+
+		Es posibgle añadir interceptores al ciclo de vida de los Beans. Estos interceptores se ejecutarán antes o después de los diferentes eventos del ciclo de vida de un Bean. Estos interceptores tabién pueden ser definidos en una clase a parte para que se puedan utilizar en diferentes implemetnaciones de Bean.
+
+			- @PostConstruct -> Después de crear la instancia habiendo llamado al constructor
+			- @PreDestroy -> Antes de indicar a java que el objeto está listo para ser borrado de la memoria
+
+		Ejemplo:
+
+		public class ProfileInterceptor {
+			@Inject
+			private Logger logger;
+			
+			@PostConstruct
+			public void logMethod(InvocationContext ic) throws Exception {
+				logger.fine(ic.getTarget().toString());
+				try {
+					ic.proceed();
+				} finally {
+					logger.fine(ic.getTarget().toString());
+				}
+			}
+
+			@AroundInvoke
+			public Object profile(InvocationContext ic) throws Exception {
+				long initTime = System.currentTimeMillis();
+				try {
+					return ic.proceed();
+				} finally {
+					long diffTime = System.currentTimeMillis() - initTime;
+					logger.fine(ic.getMethod() + " took " + diffTime + " millis");
+				}
+			}
+		}
+
+		@Transactional
+		@Interceptors(ProfileInterceptor.class)
+		public class CustomerService {
+
+			@Inject
+			private EntityManager em;
+			
+			@PostConstruct
+			public void init() {
+				// ...
+			}
+			
+			public void createCustomer(Customer customer) {
+				em.persist(customer);
+			}
+			
+			public Customer findCustomerById(Long id) {
+				return em.find(Customer.class, id);
+			}
+		}
+
+		Es posible crear tus propias anotaciones interceptoras con la anotación @InterceptorBinding. Para poder usarlas, es necesario incluir las dos anotaciones. @Interceptor y la anotación personalizada en la implementación del interceptor y luego, usar esa anotación donde sea necesario.
+		Ejemplo:
+
+			@InterceptorBinding
+			@Target({METHOD, TYPE})
+			@Retention(RUNTIME)
+			public @interface Loggable { }
+
+			@Interceptor
+			@Loggable
+			public class LoggingInterceptor {
+			
+				@Inject
+				private Logger logger;
+				
+				@AroundInvoke
+				public Object logMethod(InvocationContext ic) throws Exception {
+					logger.entering(ic.getTarget().toString(), ic.getMethod().getName());
+					try {
+						return ic.proceed();
+					} finally {
+						logger.exiting(ic.getTarget().toString(), ic.getMethod().getName());
+					}
+				}
+			}
+
+			@Transactional
+			public class CustomerService {
+
+				@Loggable
+				public void createCustomer(Customer customer) {...}
+
+				public Customer findCustomerById(Long id) {...}
+			}
+
+		Para ordenar la ejecución de interceptores personalizados, se utiliza la anotación @Priority que recibe com oparámetro un int, en la implementación del interceptor. La regla es que aquellos interceptores que tengan menor prioridad se ejecutan antes que los otros que tengan mayor prioridad. Existe un estándar para las prioirdades marcado por las contantes alojadas en javax.interceptor.Interceptor:
+
+			- PLATFORM_BEFORE = 0: Inicio del rango de interceptores tempranos definidos por la plataforma Java EE.
+			- LIBRARY_BEFORE = 1000: Inicio del rango de interceptores tempranos definidos por las librerías extendidas.
+			- APPLICATION = 2000: Inicio del rango de los interceptores definidos por las aplicaciones.
+			- LIBRARY_AFTER = 3000: Inicio del rango de interceptores tardíos definidos por las librerías extendidas.
+			- PLATFORM_AFTER = 4000: Inicio del rango de interceptores tempranos definidos por la plataforma Java EE.
+
+		Ejemplo:
+
+			// El interceptor se ejecutará antes de cualquier interceptor de aplicación pero después de los
+			// interceptores de las librerías extendidas y del core de Java EE.
+			@Interceptor
+			@Loggable
+			@Priority(Interceptor.Priority.LIBRARY_BEFORE + 10)
+			public class LoggingInterceptor {...}
+
+		Para habilitar los interceptores, es necesario modificar el fichero bean.xml
+
+			<beans 
+				xmlns="http://xmlns.jcp.org/xml/ns/javaee"
+				xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+				xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee 
+				http://xmlns.jcp.org/xml/ns/javaee/beans_1_1.xsd"
+				version="1.1" bean-discovery-mode="all"
+			>
+				<interceptors>
+					<class>my.package.MyInterceptorImpl</class>
+				</interceptors>
+			</beans>
+
+	- Decoradores: Sirven para envolver ciertos bean CDI de lógica. Se diferencias de los Interceptores en que los decoradores conocen la semántica de los elementos sobre los que se inyectan permitiendo ampliar la funcionalidad de negocio del bean que implementan. 
+
+	Los decoradores, por defecto, están desactivados y es necesario activarlos por configuración.
+
+	Si una aplicación tiene interceptores y decoradores, los interceptores siempre se ejecutana ntes que lso decoradores.
+
+	Anotaciones:
+
+		+ @Decorator -> Esta anotación se incluye en la clase que va a envolver la funcionalidad estándar de uno o n Beans CDI. La clase debe implementar la misma interfaz que el bean que quiere estender. Además, puede ser asbtracta de tal forma que no tiene porqué implementar todos los métodos de la interfaz.
+
+		+ @Delegate -> Toda clase decoradora, debe incluir un elemento del que delegar, ese elemtno e sun atributo de clase con las anotaciones @Inject @Delegate. El valor inyectado en el atributo será la implementación a la que se esté añdiendo funcionalidad.
+
+	Ejemplo:
+
+		@Decorator
+		public class FromEightToThirteenDigitsDecorator implements NumberGenerator {
+		
+			@Inject @Delegate
+			private NumberGenerator numberGenerator;
+		
+			public String generateNumber() {
+				String issn = numberGenerator.generateNumber();
+				String isbn = "13-84356" + issn.substring(1);
+				return isbn;
+			}
+		}
+
+		<beans 
+			xmlns="http://xmlns.jcp.org/xml/ns/javaee"
+			xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+			xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee 
+			http://xmlns.jcp.org/xml/ns/javaee/beans_1_1.xsd"
+			version="1.1" bean-discovery-mode="all"
+		>
+			<decorators>
+				<class>omi.paquete.FromEightToThirteenDigitsDecorator</class>
+			</decorators>
+		</beans>
+
+	- Eventos:
+
+		Los eventos permiten ejecutar código de forma transversal a la lógica de ejecución de forma programática. 
+
+		Los eventos se elanzan desde el código a través de la clase javax.enterprise.event.Event<T> y el método fire() que es inyectado en la clase que desea utilziar los eventos. Luego, los eventos lanzados se recogen en métodos observadores que tiene por atributo uno del tipo T marcado con la anotación @Observes.
+
+		Ejemplo:
+
+			public class BookService {
+				@Inject
+				private NumberGenerator numberGenerator;
+				
+				@Inject
+				private Event<Book> bookAddedEvent;
+				
+				public Book createBook(String title, Float price, String description) {
+					Book book = new Book(title, price, description);
+					book.setIsbn(numberGenerator.generateNumber());
+					bookAddedEvent.fire(book);
+					return book;
+				}
+			}
+
+			public class InventoryService {
+
+				@Inject
+				private Logger logger;
+				
+				List<Book> inventory = new ArrayList<>();
+				public void addBook(@Observes Book book) {
+					logger.info("Adding book " + book.getTitle() + " to inventory");
+					inventory.add(book);
+				}
+			}
+
+		Al giaul que ocurre con otros elemntos de los Beans CDI, los Eventos pueden ser calificados con Anotaciones personalizadas con la anotación @Qualifier para diferentes eventos que se ejecuten sobre un mismo tipo T o para añadir atributos específicos al evento (TODO Buscar un ejemplo de esto que no hay en el libro)
+
+		Ejemplo: 
+
+			public class BookService {
+				
+				@Inject
+				private NumberGenerator numberGenerator;
+				
+				@Inject @Added
+				private Event<Book> bookAddedEvent;
+				
+				@Inject @Removed
+				private Event<Book> bookRemovedEvent;
+				
+				public Book createBook(String title, Float price, String description) {
+					Book book = new Book(title, price, description);
+					book.setIsbn(numberGenerator.generateNumber());
+					bookAddedEvent.fire(book);
+					return book;
+				}
+
+				public void deleteBook(Book book) {
+					bookRemovedEvent.fire(book);
+				}
+			}
+
+			public class InventoryService {
+				
+				@Inject
+				private Logger logger;
+				
+				List<Book> inventory = new ArrayList<>();
+				
+				public void addBook(@Observes @Added Book book) {
+					logger.warning("Adding book " + book.getTitle() + " to inventory");
+					inventory.add(book);
+				}
+
+				public void removeBook(@Observes @Removed Book book) {
+					logger.warning("Removing book " + book.getTitle() + " to inventory");
+					inventory.remove(book);
+				}
+			}

@@ -1,0 +1,119 @@
+[JAVA EE 7] Capítulo 12 XML y JSON
+----------------------------------
+
+XML:
+
+	Java Entepraise ofrece al posibilidad de parseo de Objetos de XML a Entidades en lo que se conoce como JAXB (Java Architecture for XML Binding) basado en un sistema de anotaciones.
+
+	Marshalling, es la acción de transformar un Objeto java en XML.
+	Unmarshalling, es la habilidad de transformar un XML en un Objeto Java.
+
+	Las prinicpales paqueterías implicadas en el parseo de XML a objetos son:
+
+		javax.xml.bind -> Framework de ejecución de parseos de xml y validaciones.
+		javax.xml.bind.annotation -> Conjunto de anotaciones para customizar el mapeo entre el programa java y los datos XML.
+		javax.xml.bind.annotation.adapters -> Clases de adaptación utilizadas por JSXB.
+		javax.xml.bind.attachment -> Gestión de datos binarios dentro de los XML
+		javax.xml.bind.helpers -> Implementación parcial de ciertas interfaces de la paquetería
+		javax.xml.bind.util -> Clases de utilidades.
+
+	javax.xml.bind.JAXBContext -> Es el núcleo central de JAXB y permite tanto la transformación a Objetos como a XML mediante dos objetos:
+
+		Unmarshaller -> Transforma XML a objetos.
+		Marshaller -> Trasnforma objetos a XML.
+
+		Ejemplo:
+
+			public class Main {
+				public static void main(String[] args) throws JAXBException {
+
+					CreditCard creditCard = new CreditCard("1234", "12/09", 6398, "Visa");
+					StringWriter writer = new StringWriter();
+
+					JAXBContext context = JAXBContext.newInstance(CreditCard.class);
+
+					Marshaller m = context.createMarshaller();
+					m.marshal(creditCard, writer);
+
+					System.out.println(writer.toString());
+				}
+			}
+
+	Anotaciones: 
+
+		Los diferentes tipos de anotaciones son:
+
+			@XmlAccessorType -> Determina si los atributos serán añadidos en el atributo en los me´toso getter, etc... (FIELD, NONE, PROPERTY,PUBLIC_MEMBER)
+			
+			@XmlAttribute -> Mapeo una tributo o getter en un atributo simple XML (String, Boolean...)
+			
+			@XmlElement -> Mapea una tributo no estático no transient en un elemento XML.
+			
+			@XmlElements -> Es un contenedor de múltiples @XmlElement
+			
+			@XmlEnum -> Mapea un enumerado a una representación XML
+			
+			@XmlID -> Identifica el id de un elemento XML que puede ser utilizado para referenciar a otros elementos anteriorres en el arbol XML con la anotación @XmlIDREF.
+			
+			@XmlIDREF -> Mapea una propiedad a un elemento referenciado (XML IDREF) en el esquema.
+			
+			@XmlList -> Mapea una propiedad a una lista
+			
+			@XmlMimeType -> Identifica una representación textual de un tipo MIME de una propiedad
+			
+			@XmlNs -> Identifica un espacio de nombres XML
+			
+			@XmlRootElement -> Representa una clase de Java como parseable a XML
+			
+			@XmlSchema -> Mapea un paquete a un espacio de nombres XML
+			
+			@XmlTransient -> Informa a JAXB de que no transforme un atributo
+			
+			@XmlType -> Determina que una clase es una clase compleja del eschema XML
+			
+			@XmlValue -> Permite en mapeo de una clase al contenido de un esquema o tipo
+
+		Ejemplo: 
+
+			// Clase Java
+			@XmlRootElement
+			@XmlAccessorType(XmlAccessType.FIELD)
+			public class CreditCard {
+
+				@XmlAttribute(required = true)
+				private String number;
+				
+				@XmlElement(name = "expiry-date", defaultValue = "01/10")
+				private String expiryDate;
+				private String type;
+				
+				@XmlElement(name = "control-number")
+				private Integer controlNumber;
+				// Constructors, getters, setters
+			}
+
+			<!-- Esquema -->
+			<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+			<xs:schema version="1.0" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+				<xs:element name="creditCard" type="creditCard"/>
+					<xs:complexType name="creditCard">
+					<xs:sequence>
+						<xs:element name="expiry-date" type="xs:string" default="01/10" minOccurs="0"/>
+						<xs:element name="type" type="xs:string" minOccurs="0"/>
+						<xs:element name="control-number" type="xs:int" minOccurs="0"/>
+					</xs:sequence>
+					<xs:attribute name="number" type="xs:string" use="required"/>
+				</xs:complexType>
+			</xs:schema>
+
+			<!-- Objeto XML -->
+			<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+				<creditCard number="1234">
+				<expiry-date>12/09</expiry-date>
+				<type>Visa</type>
+				<control-number>6398</control-number>
+			</creditCard>
+
+Json: 
+
+	A parte de los objetos para transformar JSON a bajo nivel, no existe una implementación estándard de java EE para hacer Trasnformaciones a alto nivel de Json a objeto y viceversa, sin embargo, ciertas implementaciones externas puede que las contengan bajo el nombre JSON-B
